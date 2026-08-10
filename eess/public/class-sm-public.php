@@ -46,6 +46,17 @@ class SM_Public {
         return $avatar;
     }
 
+    public function intercept_ajax_requests() {
+        if (defined('DOING_AJAX') && DOING_AJAX) {
+            $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : '';
+            if (!empty($action) && (strpos($action, 'sm_') === 0 || strpos($action, 'eess_') === 0)) {
+                if (!SM_Settings::is_ajax_action_allowed($action)) {
+                    wp_send_json_error('عفواً، الدخول غير مصرح به لهذه العملية (Access Restricted).');
+                }
+            }
+        }
+    }
+
     public function restrict_admin_access() {
         if (is_user_logged_in()) {
             $status = get_user_meta(get_current_user_id(), 'sm_account_status', true);
@@ -109,6 +120,13 @@ class SM_Public {
         if (!is_user_logged_in()) {
             wp_redirect(add_query_arg('redirect_to', home_url('/lesson-prep'), home_url('/sm-login')));
             exit;
+        }
+
+        $user = wp_get_current_user();
+        $roles = (array) $user->roles;
+        $is_admin = in_array('administrator', $roles) || current_user_can('manage_options');
+        if (!$is_admin && (!SM_Settings::is_section_visible('lesson-plans') || !SM_Settings::user_has_module_capability('lesson-plans'))) {
+            return SM_Settings::get_access_restricted_html();
         }
 
         // Runtime DB table presence check and automatic creation
@@ -1357,43 +1375,14 @@ class SM_Public {
         $user = wp_get_current_user();
         $roles = (array) $user->roles;
         $active_tab = isset($_GET['sm_tab']) ? sanitize_text_field($_GET['sm_tab']) : 'summary';
-        
-        // Sidebar Visibility Block check
-        $visibility = SM_Settings::get_sidebar_visibility();
-        $user_role_key = !empty($roles) ? $roles[0] : '';
-        $tab_section_map = array(
-            'stats'           => 'stats',
-            'students'        => 'students',
-            'teachers'        => 'teachers',
-            'parents'         => 'parents',
-            'grades'          => 'grades',
-            'work-profile'    => 'work-profile',
-            'hr-management'   => 'hr-management',
-            'hr-evaluation'   => 'hr-evaluation',
-            'attendance'      => 'attendance',
-            'lesson-plans'    => 'lesson-plans',
-            'assignments'     => 'assignments',
-            'clinic'          => 'clinic',
-            'documents'       => 'documents'
-        );
 
         $is_admin = in_array('administrator', $roles) || current_user_can('manage_options');
 
-        if (!$is_admin && isset($tab_section_map[$active_tab])) {
-            $sec_key = $tab_section_map[$active_tab];
-            if (isset($visibility[$user_role_key]) && empty($visibility[$user_role_key][$sec_key])) {
-                ob_start();
-                ?>
-                <div class="sm-container" style="padding:60px 20px; text-align:center; max-width:550px; margin: 0 auto; font-family: 'Cairo', sans-serif;" dir="rtl">
-                    <div style="background:#ffffff; padding:45px 30px; border-radius:12px; border:1px solid #cbd5e1; box-shadow:0 10px 15px -3px rgba(0,0,0,0.05);">
-                        <div style="font-size:75px; color:#ea580c; line-height:1; margin-bottom:20px;">🔒</div>
-                        <h2 style="margin:0 0 10px 0; font-weight:800; color:#0f172a; font-size:1.6rem;">عفواً، الدخول غير مصرح به</h2>
-                        <p style="margin:0 0 30px 0; font-size:14px; color:#64748b; line-height:1.7;">يرجى العلم بأنك لا تملك الصلاحيات الكافية للوصول إلى هذا القسم. إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع إدارة النظام.</p>
-                        <a href="<?php echo home_url('/sm-admin'); ?>" class="sm-btn" style="width:100%; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; font-weight:700; color:white !important; background-color:#000000 !important; border:1px solid #000000;">العودة للوحة الإدارة الرئيسية</a>
-                    </div>
-                </div>
-                <?php
-                return ob_get_clean();
+        // Centralized security & visibility control check for active tab
+        if (!$is_admin) {
+            $is_allowed = SM_Settings::is_section_visible($active_tab) && SM_Settings::user_has_module_capability($active_tab);
+            if (!$is_allowed) {
+                return SM_Settings::get_access_restricted_html();
             }
         }
 
@@ -2077,6 +2066,12 @@ class SM_Public {
     }
 
     public function shortcode_class_attendance() {
+        $user = wp_get_current_user();
+        $roles = (array) $user->roles;
+        $is_admin = in_array('administrator', $roles) || current_user_can('manage_options');
+        if (!$is_admin && (!SM_Settings::is_section_visible('attendance') || !SM_Settings::user_has_module_capability('attendance'))) {
+            return SM_Settings::get_access_restricted_html();
+        }
         ob_start();
         include SM_PLUGIN_DIR . 'templates/shortcode-class-attendance.php';
         return ob_get_clean();
@@ -3233,8 +3228,12 @@ class SM_Public {
         // Handle Sidebar Visibility Settings Save
         if (isset($_POST['sm_save_sidebar_visibility']) && wp_verify_nonce($_POST['sm_admin_nonce'], 'sm_admin_action')) {
             if (current_user_can('إدارة_النظام')) {
-                $roles_to_process = array('sm_system_admin', 'sm_principal', 'sm_supervisor', 'sm_coordinator', 'sm_teacher', 'sm_student', 'sm_parent', 'sm_discipline_supervisor', 'sm_activities_supervisor', 'sm_transportation_supervisor', 'sm_bus_supervisor');
-                $sections_to_process = array('stats', 'students', 'teachers', 'parents', 'grades', 'teacher-reports', 'attendance', 'lesson-plans', 'assignments', 'clinic', 'documents');
+                $roles_to_process = array(
+                    'sm_system_admin', 'sm_principal', 'sm_supervisor', 'sm_coordinator',
+                    'sm_teacher', 'sm_student', 'sm_parent', 'sm_discipline_supervisor',
+                    'sm_activities_supervisor', 'sm_transportation_supervisor', 'sm_bus_supervisor', 'sm_hr'
+                );
+                $sections_to_process = array_keys(SM_Settings::get_system_modules());
 
                 $visibility = array();
                 $input = isset($_POST['sidebar_visibility']) ? $_POST['sidebar_visibility'] : array();
@@ -3248,7 +3247,18 @@ class SM_Public {
                 }
 
                 SM_Settings::save_sidebar_visibility($visibility);
-                SM_Logger::log('تحديث إعدادات ظهور القائمة', 'تم تخصيص الأقسام المرئية لكل رتبة في النظام.');
+
+                // IMMEDIATELY INVALIDATE CACHES & TRANSIENTS
+                global $wpdb;
+                $wpdb->query("DELETE FROM {$wpdb->prefix}options WHERE option_name LIKE '_transient_sm_%' OR option_name LIKE '_transient_timeout_sm_%'");
+                $wpdb->query("DELETE FROM {$wpdb->prefix}options WHERE option_name LIKE '_transient_eess_%' OR option_name LIKE '_transient_timeout_eess_%'");
+                wp_cache_flush();
+                $users = get_users(array('fields' => array('ID')));
+                foreach ($users as $u) {
+                    clean_user_cache($u->ID);
+                }
+
+                SM_Logger::log('تحديث إعدادات ظهور القائمة', 'تم تخصيص الأقسام المرئية لكل رتبة في النظام وإلغاء ذاكرة التخزين المؤقت.');
                 wp_redirect(add_query_arg('sm_admin_msg', 'settings_saved', $_SERVER['REQUEST_URI']));
                 exit;
             }

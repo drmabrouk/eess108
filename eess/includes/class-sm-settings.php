@@ -307,22 +307,571 @@ class SM_Settings {
         update_option('sm_timetable_settings', $data);
     }
 
-    public static function get_sidebar_visibility() {
-        $default = array(
-            'sm_system_admin' => array('stats' => true, 'students' => true, 'teachers' => true, 'parents' => true, 'grades' => true, 'teacher-reports' => true, 'attendance' => true, 'lesson-plans' => true, 'assignments' => true, 'clinic' => true, 'documents' => true),
-            'sm_principal' => array('stats' => true, 'students' => true, 'teachers' => true, 'parents' => true, 'grades' => true, 'teacher-reports' => true, 'attendance' => true, 'lesson-plans' => true, 'assignments' => true, 'clinic' => true, 'documents' => true),
-            'sm_supervisor' => array('stats' => true, 'students' => true, 'teachers' => true, 'parents' => true, 'grades' => true, 'teacher-reports' => true, 'attendance' => true, 'lesson-plans' => true, 'assignments' => true, 'clinic' => true, 'documents' => true),
-            'sm_coordinator' => array('stats' => false, 'students' => false, 'teachers' => false, 'parents' => false, 'grades' => true, 'teacher-reports' => false, 'attendance' => false, 'lesson-plans' => true, 'assignments' => false, 'clinic' => false, 'documents' => true),
-            'sm_teacher' => array('stats' => true, 'students' => true, 'teachers' => false, 'parents' => false, 'grades' => true, 'teacher-reports' => false, 'attendance' => true, 'lesson-plans' => true, 'assignments' => true, 'clinic' => false, 'documents' => true),
-            'sm_student' => array('stats' => true, 'students' => false, 'teachers' => false, 'parents' => false, 'grades' => true, 'teacher-reports' => false, 'attendance' => false, 'lesson-plans' => false, 'assignments' => true, 'clinic' => false, 'documents' => false),
-            'sm_parent' => array('stats' => true, 'students' => false, 'teachers' => false, 'parents' => false, 'grades' => true, 'teacher-reports' => false, 'attendance' => false, 'lesson-plans' => false, 'assignments' => false, 'clinic' => false, 'documents' => false),
-            'sm_discipline_supervisor' => array('stats' => true, 'students' => true, 'teachers' => false, 'parents' => false, 'grades' => false, 'teacher-reports' => true, 'attendance' => false, 'lesson-plans' => false, 'assignments' => false, 'clinic' => false, 'documents' => true),
-            'sm_activities_supervisor' => array('stats' => true, 'students' => false, 'teachers' => false, 'parents' => false, 'grades' => false, 'teacher-reports' => false, 'attendance' => false, 'lesson-plans' => false, 'assignments' => false, 'clinic' => false, 'documents' => true),
-            'sm_transportation_supervisor' => array('stats' => true, 'students' => false, 'teachers' => false, 'parents' => false, 'grades' => false, 'teacher-reports' => false, 'attendance' => false, 'lesson-plans' => false, 'assignments' => false, 'clinic' => false, 'documents' => true),
-            'sm_bus_supervisor' => array('stats' => true, 'students' => false, 'teachers' => false, 'parents' => false, 'grades' => false, 'teacher-reports' => false, 'attendance' => false, 'lesson-plans' => false, 'assignments' => false, 'clinic' => false, 'documents' => true),
+    public static function get_system_modules() {
+        return array(
+            'summary' => array(
+                'label' => 'لوحة المعلومات',
+                'dashicon' => 'dashicons-dashboard',
+                'tab' => 'summary',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => true,
+                    'sm_teacher' => true,
+                    'sm_student' => true,
+                    'sm_parent' => true,
+                    'sm_discipline_supervisor' => true,
+                    'sm_activities_supervisor' => true,
+                    'sm_transportation_supervisor' => true,
+                    'sm_bus_supervisor' => true,
+                    'sm_hr' => true,
+                )
+            ),
+            'students' => array(
+                'label' => 'شؤون الطلاب',
+                'dashicon' => 'dashicons-groups',
+                'tab' => 'students',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => true,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => true,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'stats' => array(
+                'label' => 'سجل سلوك الطلاب',
+                'dashicon' => 'dashicons-list-view',
+                'tab' => 'stats',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => true,
+                    'sm_student' => true,
+                    'sm_parent' => true,
+                    'sm_discipline_supervisor' => true,
+                    'sm_activities_supervisor' => true,
+                    'sm_transportation_supervisor' => true,
+                    'sm_bus_supervisor' => true,
+                    'sm_hr' => false,
+                )
+            ),
+            'teachers' => array(
+                'label' => 'إدارة مستخدمي النظام',
+                'dashicon' => 'dashicons-admin-users',
+                'tab' => 'teachers',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'parents' => array(
+                'label' => 'إدارة أولياء الأمور',
+                'dashicon' => 'dashicons-admin-users',
+                'tab' => 'parents',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'grades' => array(
+                'label' => 'إدارة الدرجات والنتائج',
+                'dashicon' => 'dashicons-welcome-learn-more',
+                'tab' => 'grades',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => true,
+                    'sm_teacher' => true,
+                    'sm_student' => true,
+                    'sm_parent' => true,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'attendance' => array(
+                'label' => 'سجل الحضور والغياب',
+                'dashicon' => 'dashicons-calendar-alt',
+                'tab' => 'attendance',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => true,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'work-profile' => array(
+                'label' => 'ملف العمل',
+                'dashicon' => 'dashicons-businessman',
+                'tab' => 'work-profile',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => true,
+                    'sm_teacher' => true,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => true,
+                    'sm_activities_supervisor' => true,
+                    'sm_transportation_supervisor' => true,
+                    'sm_bus_supervisor' => true,
+                    'sm_hr' => true,
+                )
+            ),
+            'hr-evaluation' => array(
+                'label' => 'تقييم الموظفين',
+                'dashicon' => 'dashicons-awards',
+                'tab' => 'hr-evaluation',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => true,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => true,
+                )
+            ),
+            'hr-management' => array(
+                'label' => 'إدارة الموارد البشرية',
+                'dashicon' => 'dashicons-id-alt',
+                'tab' => 'hr-management',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => false,
+                    'sm_supervisor' => false,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => true,
+                )
+            ),
+            'lesson-plans' => array(
+                'label' => 'تحضير الدروس',
+                'dashicon' => 'dashicons-welcome-write-blog',
+                'tab' => 'lesson-plans',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => true,
+                    'sm_teacher' => true,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'assignments' => array(
+                'label' => 'الواجبات المدرسية',
+                'dashicon' => 'dashicons-portfolio',
+                'tab' => 'assignments',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => false,
+                    'sm_supervisor' => false,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => true,
+                    'sm_student' => true,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'documents' => array(
+                'label' => 'مكتبة الوثائق والتقارير',
+                'dashicon' => 'dashicons-media-document',
+                'tab' => 'documents',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => true,
+                    'sm_teacher' => true,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => true,
+                    'sm_activities_supervisor' => true,
+                    'sm_transportation_supervisor' => true,
+                    'sm_bus_supervisor' => true,
+                    'sm_hr' => false,
+                )
+            ),
+            'clinic' => array(
+                'label' => 'العيادة المدرسية',
+                'dashicon' => 'dashicons-heart',
+                'tab' => 'clinic',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => true,
+                    'sm_supervisor' => true,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'school-structure' => array(
+                'label' => 'الهيكل التنظيمي والاداري',
+                'dashicon' => 'dashicons-category',
+                'tab' => 'school-structure',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => false,
+                    'sm_supervisor' => false,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
+            'global-settings' => array(
+                'label' => 'إعدادات النظام',
+                'dashicon' => 'dashicons-admin-generic',
+                'tab' => 'global-settings',
+                'default' => array(
+                    'sm_system_admin' => true,
+                    'sm_principal' => false,
+                    'sm_supervisor' => false,
+                    'sm_coordinator' => false,
+                    'sm_teacher' => false,
+                    'sm_student' => false,
+                    'sm_parent' => false,
+                    'sm_discipline_supervisor' => false,
+                    'sm_activities_supervisor' => false,
+                    'sm_transportation_supervisor' => false,
+                    'sm_bus_supervisor' => false,
+                    'sm_hr' => false,
+                )
+            ),
         );
+    }
+
+    public static function user_has_module_capability($key, $user_id = null) {
+        if (!$user_id) {
+            $user_id = get_current_user_id();
+        }
+        if (!$user_id) {
+            return false;
+        }
+        $user = get_userdata($user_id);
+        if (!$user) {
+            return false;
+        }
+        $roles = (array) $user->roles;
+        $is_admin = in_array('administrator', $roles) || user_can($user_id, 'manage_options');
+        $is_sys_admin = in_array('sm_system_admin', $roles);
+        $is_principal = in_array('sm_principal', $roles);
+        $is_supervisor = in_array('sm_supervisor', $roles);
+        $is_coordinator = in_array('sm_coordinator', $roles);
+        $is_teacher = in_array('sm_teacher', $roles);
+        $is_student = in_array('sm_student', $roles);
+        $is_parent = in_array('sm_parent', $roles);
+        $is_clinic = in_array('sm_clinic', $roles);
+
+        if ($is_admin || $is_sys_admin) {
+            return true;
+        }
+
+        switch ($key) {
+            case 'summary':
+                return true;
+            case 'stats':
+                return ($is_principal || $is_supervisor || $is_teacher || $is_student || $is_parent || in_array('sm_discipline_supervisor', $roles) || in_array('sm_activities_supervisor', $roles) || in_array('sm_transportation_supervisor', $roles) || in_array('sm_bus_supervisor', $roles) || in_array('sm_hr', $roles));
+            case 'students':
+                return ($is_principal || $is_supervisor || $is_teacher || in_array('sm_discipline_supervisor', $roles));
+            case 'teachers':
+            case 'parents':
+                return ($is_principal || $is_supervisor);
+            case 'grades':
+                return ($is_principal || $is_supervisor || $is_coordinator || $is_teacher || $is_student || $is_parent);
+            case 'attendance':
+                return ($is_principal || $is_supervisor || $is_teacher);
+            case 'work-profile':
+                return ($is_principal || $is_supervisor || $is_coordinator || $is_teacher || in_array('sm_hr', $roles) || in_array('sm_discipline_supervisor', $roles) || in_array('sm_activities_supervisor', $roles) || in_array('sm_transportation_supervisor', $roles) || in_array('sm_bus_supervisor', $roles) || $is_clinic);
+            case 'hr-evaluation':
+                return ($is_principal || $is_supervisor || $is_coordinator || in_array('sm_hr', $roles) || user_can($user_id, 'manage_hr'));
+            case 'hr-management':
+                return (in_array('sm_hr', $roles) || user_can($user_id, 'manage_hr'));
+            case 'lesson-plans':
+                return ($is_principal || $is_supervisor || $is_coordinator || $is_teacher);
+            case 'assignments':
+                return ($is_teacher || $is_student);
+            case 'documents':
+                return true;
+            case 'clinic':
+                return ($is_principal || $is_supervisor || $is_clinic);
+            case 'school-structure':
+            case 'global-settings':
+                return false; // Only admins and sys admins can access, which is handled above
+            default:
+                return false;
+        }
+    }
+
+    public static function is_section_visible($section, $user_id = null) {
+        if (!$user_id) {
+            $user_id = get_current_user_id();
+        }
+        if (!$user_id) {
+            return false;
+        }
+        $user = get_userdata($user_id);
+        if (!$user) {
+            return false;
+        }
+        $roles = (array) $user->roles;
+        if (in_array('administrator', $roles)) {
+            return true;
+        }
+
+        $role = !empty($roles) ? $roles[0] : '';
+        $visibility = self::get_sidebar_visibility();
+
+        if (isset($visibility[$role][$section])) {
+            return (bool) $visibility[$role][$section];
+        }
+
+        // Fallback to default
+        $modules = self::get_system_modules();
+        if (isset($modules[$section]['default'][$role])) {
+            return (bool) $modules[$section]['default'][$role];
+        }
+
+        return false;
+    }
+
+    public static function is_ajax_action_allowed($action, $user_id = null) {
+        if (!$user_id) {
+            $user_id = get_current_user_id();
+        }
+
+        // If user is not logged in, only allow non-logged-in public/nopriv actions
+        if (!$user_id) {
+            $public_actions = array(
+                'sm_get_students_attendance_ajax',
+                'sm_save_attendance_ajax',
+                'sm_save_attendance_batch_ajax',
+                'eess_forgot_otp',
+                'eess_forgot_verify',
+                'eess_forgot_reset',
+                'eess_register_otp',
+                'eess_register_submit'
+            );
+            return in_array($action, $public_actions);
+        }
+
+        $user = get_userdata($user_id);
+        if (!$user) {
+            return false;
+        }
+        $roles = (array) $user->roles;
+        if (in_array('administrator', $roles)) {
+            return true;
+        }
+
+        // Map AJAX actions to section keys
+        $action_map = array(
+            // Students
+            'sm_get_student' => 'students',
+            'sm_search_students' => 'students',
+            'sm_get_student_intelligence' => 'students',
+            'sm_add_student_ajax' => 'students',
+            'sm_update_student_ajax' => 'students',
+            'sm_delete_student_ajax' => 'students',
+            'sm_bulk_delete_students_ajax' => 'students',
+            'sm_upload_import_csv' => 'students',
+            'sm_process_import_chunk' => 'students',
+            'sm_export_students_csv' => 'students',
+
+            // Stats / behavior
+            'sm_filter_violations' => 'stats',
+            'sm_mark_contacted' => 'stats',
+            'sm_export_violations_csv' => 'stats',
+
+            // Teachers / Users
+            'sm_add_user_ajax' => 'teachers',
+            'sm_update_generic_user_ajax' => 'teachers',
+            'sm_add_teacher_ajax' => 'teachers',
+            'sm_update_teacher_ajax' => 'teachers',
+            'sm_bulk_delete_users_ajax' => 'teachers',
+            'eess_approve_user' => 'teachers',
+            'eess_reject_user' => 'teachers',
+            'eess_save_user_notes' => 'teachers',
+            'sm_export_users_csv' => 'teachers',
+
+            // Parents
+            'sm_add_parent_ajax' => 'parents',
+
+            // Grades
+            'sm_save_grade_ajax' => 'grades',
+            'sm_get_student_grades_ajax' => 'grades',
+            'sm_delete_grade_ajax' => 'grades',
+            'sm_add_subject' => 'grades',
+            'sm_delete_subject' => 'grades',
+            'sm_get_subjects' => 'grades',
+            'sm_save_class_grades' => 'grades',
+
+            // Attendance
+            'sm_get_students_attendance_ajax' => 'attendance',
+            'sm_save_attendance_ajax' => 'attendance',
+            'sm_save_attendance_batch_ajax' => 'attendance',
+            'sm_reset_class_code_ajax' => 'attendance',
+            'sm_toggle_attendance_status_ajax' => 'attendance',
+
+            // HR
+            'eess_hr_add_employee' => 'hr-management',
+
+            // Lesson plans
+            'sm_download_plans_zip' => 'lesson-plans',
+
+            // Assignments
+            'sm_add_assignment_ajax' => 'assignments',
+            'sm_approve_plan_ajax' => 'assignments',
+
+            // Documents
+            'sm_add_document_ajax' => 'documents',
+            'sm_update_document_ajax' => 'documents',
+            'sm_delete_document_ajax' => 'documents',
+
+            // Clinic
+            'sm_add_clinic_referral' => 'clinic',
+            'sm_confirm_clinic_arrival' => 'clinic',
+            'sm_update_clinic_record' => 'clinic',
+            'sm_get_clinic_reports' => 'clinic',
+
+            // Global Settings
+            'sm_save_regulation_settings_ajax' => 'global-settings',
+            'sm_save_hierarchical_violations_ajax' => 'global-settings',
+            'sm_delete_all_logs_ajax' => 'global-settings',
+            'sm_delete_log_ajax' => 'global-settings',
+            'sm_rollback_log_ajax' => 'global-settings',
+            'sm_initialize_system_ajax' => 'global-settings',
+            'sm_bulk_delete_ajax' => 'global-settings',
+            'sm_refresh_system_cache_ajax' => 'global-settings',
+        );
+
+        if (isset($action_map[$action])) {
+            $section = $action_map[$action];
+            return self::is_section_visible($section, $user_id) && self::user_has_module_capability($section, $user_id);
+        }
+
+        return true; // Not mapped, allow by default
+    }
+
+    public static function get_access_restricted_html() {
+        ob_start();
+        ?>
+        <div class="sm-container" style="padding:60px 20px; text-align:center; max-width:550px; margin: 0 auto; font-family: 'Cairo', sans-serif;" dir="rtl">
+            <div style="background:#ffffff; padding:45px 30px; border-radius:12px; border:1px solid #cbd5e1; box-shadow:0 10px 15px -3px rgba(0,0,0,0.05);">
+                <div style="font-size:75px; color:#ea580c; line-height:1; margin-bottom:20px;">🔒</div>
+                <h2 style="margin:0 0 10px 0; font-weight:800; color:#0f172a; font-size:1.6rem;">عفواً، الدخول غير مصرح به</h2>
+                <p style="margin:0 0 30px 0; font-size:14px; color:#64748b; line-height:1.7;">يرجى العلم بأنك لا تملك الصلاحيات الكافية للوصول إلى هذا القسم. إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع إدارة النظام.</p>
+                <a href="<?php echo home_url('/sm-admin'); ?>" class="sm-btn" style="width:100%; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; font-weight:700; color:white !important; background-color:#000000 !important; border:1px solid #000000;">العودة للوحة الإدارة الرئيسية</a>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    public static function get_sidebar_visibility() {
+        $modules = self::get_system_modules();
+        $roles = array(
+            'sm_system_admin',
+            'sm_principal',
+            'sm_supervisor',
+            'sm_coordinator',
+            'sm_teacher',
+            'sm_student',
+            'sm_parent',
+            'sm_discipline_supervisor',
+            'sm_activities_supervisor',
+            'sm_transportation_supervisor',
+            'sm_bus_supervisor',
+            'sm_hr'
+        );
+
+        $default = array();
+        foreach ($roles as $role) {
+            $default[$role] = array();
+            foreach ($modules as $sec_key => $sec_data) {
+                $default[$role][$sec_key] = $sec_data['default'][$role] ?? false;
+            }
+        }
+
         $saved = get_option('sm_sidebar_visibility');
-        if ($saved === false) return $default;
+        if ($saved === false) {
+            return $default;
+        }
 
         // Merge saved settings role by role to ensure persistence
         foreach ($default as $role => $sections) {
