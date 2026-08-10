@@ -476,102 +476,34 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
         <!-- SIDEBAR -->
         <div class="sm-sidebar" style="width: 220px; flex-shrink: 0; background: var(--sm-bg-light); border-left: 1px solid var(--sm-border-color); padding: 20px 0;">
             <ul style="list-style: none; padding: 0; margin: 0;">
-                <li class="sm-sidebar-item <?php echo $active_tab == 'summary' ? 'sm-active' : ''; ?>">
-                    <a href="<?php echo add_query_arg('sm_tab', 'summary'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-dashboard"></span> لوحة المعلومات</a>
-                </li>
+                <?php foreach (SM_Settings::get_system_modules() as $key => $module):
+                    // 1. Check if the module is visible for the role (or is super admin)
+                    $is_visible = SM_Settings::is_section_visible($key);
+                    if (!$is_visible) {
+                        continue;
+                    }
 
-                <?php if (($is_wp_admin || !empty($my_visibility['stats'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_teacher || $is_student || $is_parent)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'stats' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo remove_query_arg(['student_search', 'class_filter', 'section_filter', 'type_filter', 'start_date', 'end_date'], add_query_arg('sm_tab', 'stats')); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-list-view"></span> سجل سلوك الطلاب</a>
-                    </li>
-                <?php endif; ?>
+                    // 2. Check existing permissions / capabilities for this module
+                    if (!SM_Settings::user_has_module_capability($key)) {
+                        continue;
+                    }
 
-                <?php if (($is_wp_admin || !empty($my_visibility['students'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_teacher)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'students' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo remove_query_arg(['student_search', 'class_filter', 'section_filter', 'teacher_filter'], add_query_arg('sm_tab', 'students')); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-groups"></span> شؤون الطلاب</a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['teachers'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'teachers' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'teachers'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-admin-users"></span> إدارة مستخدمي النظام</a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['parents'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'parents' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'parents'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-admin-users"></span> إدارة أولياء الأمور</a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['grades'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_coordinator || $is_teacher || $is_student || $is_parent)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'grades' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'grades'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-welcome-learn-more"></span> إدارة الدرجات والنتائج</a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['attendance'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_teacher)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'attendance' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'attendance'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-calendar-alt"></span> سجل الحضور والغياب</a>
-                    </li>
-                <?php endif; ?>
-
-
-                <?php if ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_coordinator || $is_teacher || in_array('sm_hr', $roles) || in_array('sm_discipline_supervisor', $roles) || in_array('sm_activities_supervisor', $roles) || in_array('sm_transportation_supervisor', $roles) || in_array('sm_bus_supervisor', $roles) || in_array('sm_clinic', $roles)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'work-profile' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'work-profile'); ?>" class="sm-sidebar-link">
-                            <span class="dashicons dashicons-businessman"></span> ملف العمل
+                    // Build link URLs
+                    if ($key === 'stats') {
+                        $link = remove_query_arg(['student_search', 'class_filter', 'section_filter', 'type_filter', 'start_date', 'end_date'], add_query_arg('sm_tab', 'stats'));
+                    } elseif ($key === 'students') {
+                        $link = remove_query_arg(['student_search', 'class_filter', 'section_filter', 'teacher_filter'], add_query_arg('sm_tab', 'students'));
+                    } else {
+                        $link = add_query_arg('sm_tab', $module['tab']);
+                    }
+                ?>
+                    <li class="sm-sidebar-item <?php echo $active_tab == $module['tab'] ? 'sm-active' : ''; ?>">
+                        <a href="<?php echo esc_url($link); ?>" class="sm-sidebar-link">
+                            <span class="dashicons <?php echo esc_attr($module['dashicon']); ?>"></span>
+                            <?php echo esc_html($module['label']); ?>
                         </a>
                     </li>
-                <?php endif; ?>
-
-                <?php if ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_coordinator || in_array('sm_hr', $roles) || current_user_can('manage_hr')): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'hr-evaluation' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'hr-evaluation'); ?>" class="sm-sidebar-link">
-                            <span class="dashicons dashicons-awards"></span> تقييم الموظفين
-                        </a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if ($is_admin || $is_sys_admin || in_array('sm_hr', $roles) || current_user_can('manage_hr')): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'hr-management' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'hr-management'); ?>" class="sm-sidebar-link">
-                            <span class="dashicons dashicons-id-alt"></span> إدارة الموارد البشرية
-                        </a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['lesson-plans'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_coordinator || $is_teacher)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'lesson-plans' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'lesson-plans'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-welcome-write-blog"></span> تحضير الدروس</a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['assignments'])) && ($is_teacher || $is_student)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'assignments' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'assignments'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-portfolio"></span> الواجبات المدرسية</a>
-                    </li>
-                <?php endif; ?>
-
-                <?php if (($is_wp_admin || !empty($my_visibility['documents']))): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'documents' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'documents'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-media-document"></span> مكتبة الوثائق والتقارير</a>
-                    </li>
-                <?php endif; ?>
-
-
-                <?php if (($is_wp_admin || !empty($my_visibility['clinic'])) && ($is_admin || $is_sys_admin || $is_principal || $is_supervisor || $is_clinic)): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'clinic' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'clinic'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-heart"></span> العيادة المدرسية</a>
-                    </li>
-                <?php endif; ?>
-
-
-                <?php if ($is_admin || $is_sys_admin): ?>
-                    <li class="sm-sidebar-item <?php echo $active_tab == 'global-settings' ? 'sm-active' : ''; ?>">
-                        <a href="<?php echo add_query_arg('sm_tab', 'global-settings'); ?>" class="sm-sidebar-link"><span class="dashicons dashicons-admin-generic"></span> إعدادات النظام</a>
-                    </li>
-                <?php endif; ?>
+                <?php endforeach; ?>
             </ul>
         </div>
 
@@ -1008,21 +940,13 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
                                     'sm_discipline_supervisor' => 'مشرف سلوك / انضباط',
                                     'sm_activities_supervisor' => 'مشرف أنشطة',
                                     'sm_transportation_supervisor' => 'مشرف نقل ومواصلات',
-                                    'sm_bus_supervisor' => 'مشرف حافلة'
+                                    'sm_bus_supervisor' => 'مشرف حافلة',
+                                    'sm_hr' => 'الموارد البشرية (HR)'
                                 );
-                                $sections = array(
-                                    'stats' => 'سجل المخالفات',
-                                    'students' => 'إدارة الطلاب',
-                                    'teachers' => 'إدارة مستخدمي النظام',
-                                    'parents' => 'إدارة أولياء الأمور',
-                                    'grades' => 'إدارة الدرجات والنتائج',
-                                    'teacher-reports' => 'بلاغات المعلمين',
-                                    'attendance' => 'سجل الحضور والغياب',
-                                    'lesson-plans' => 'تحضير الدروس',
-                                    'assignments' => 'الواجبات المدرسية',
-                                    'clinic' => 'العيادة المدرسية',
-                                    'documents' => 'مكتبة الوثائق والتقارير'
-                                );
+                                $sections = array();
+                                foreach (SM_Settings::get_system_modules() as $k => $mod) {
+                                    $sections[$k] = $mod['label'];
+                                }
                                 ?>
                                 <h4 style="margin-top:0;">تخصيص ظهور أقسام القائمة الجانبية حسب الرتب</h4>
                                 <p style="font-size:12px; color:#666; margin-bottom:20px;">حدد الأقسام التي تظهر لكل رتبة من رتب مستخدمي النظام.</p>
