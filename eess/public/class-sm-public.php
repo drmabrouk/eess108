@@ -2942,6 +2942,14 @@ class SM_Public {
                     EESS_Org_Helper::delete_school(intval($_POST['school_id']));
                 }
 
+                elseif ($action_type === 'add_division') {
+                    EESS_Org_Helper::add_division(intval($_POST['school_id']), sanitize_text_field($_POST['div_name']));
+                } elseif ($action_type === 'edit_division') {
+                    EESS_Org_Helper::update_division(intval($_POST['div_id']), sanitize_text_field($_POST['div_name']), intval($_POST['school_id']));
+                } elseif ($action_type === 'delete_division') {
+                    EESS_Org_Helper::delete_division(intval($_POST['div_id']));
+                }
+
                 elseif ($action_type === 'add_grade') {
                     EESS_Org_Helper::add_grade(intval($_POST['school_id']), sanitize_text_field($_POST['grade_name']));
                 } elseif ($action_type === 'edit_grade') {

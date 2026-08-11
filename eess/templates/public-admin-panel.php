@@ -483,11 +483,6 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
                         continue;
                     }
 
-                    // 2. Check existing permissions / capabilities for this module
-                    if (!SM_Settings::user_has_module_capability($key)) {
-                        continue;
-                    }
-
                     // Build link URLs
                     if ($key === 'stats') {
                         $link = remove_query_arg(['student_search', 'class_filter', 'section_filter', 'type_filter', 'start_date', 'end_date'], add_query_arg('sm_tab', 'stats'));
@@ -1020,6 +1015,7 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
                                 <?php
                                 $institutions = EESS_Org_Helper::get_institutions();
                                 $schools = EESS_Org_Helper::get_schools();
+                                $divisions = EESS_Org_Helper::get_divisions();
                                 $grades = EESS_Org_Helper::get_grades();
                                 $classes = EESS_Org_Helper::get_classes();
                                 ?>
@@ -1060,39 +1056,59 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
                                                                             <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 10px;">[حذف]</button>
                                                                         </form>
                                                                     </div>
-                                                                    <!-- Grades -->
-                                                                    <div style="margin-right: 15px; margin-top: 4px; border-right: 1px solid #cbd5e1; padding-right: 10px;">
+                                                                    <!-- Divisions/Cycles -->
+                                                                    <div style="margin-right: 15px; margin-top: 4px; border-right: 1px dashed var(--sm-primary-color); padding-right: 10px;">
                                                                         <?php
-                                                                        $sch_grades = array_filter($grades, function($g) use ($sch){ return $g->school_id == $sch->id; });
-                                                                        foreach ($sch_grades as $gr):
+                                                                        $sch_divs = array_filter($divisions, function($d) use ($sch){ return $d->school_id == $sch->id; });
+                                                                        foreach ($sch_divs as $div):
                                                                         ?>
-                                                                            <div style="margin-bottom: 6px;">
-                                                                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600;">
-                                                                                    <span>📚 <?php echo esc_html($gr->name); ?></span>
-                                                                                    <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذا الصف والشعب التابعة له؟')">
+                                                                            <div style="margin-bottom: 8px;">
+                                                                                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #1e293b; font-size: 12px;">
+                                                                                    <span>🔄 <?php echo esc_html($div->name); ?></span>
+                                                                                    <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذا النطاق/الحلقة؟')">
                                                                                         <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
                                                                                         <input type="hidden" name="eess_save_org_structure" value="1">
-                                                                                        <input type="hidden" name="eess_org_action" value="delete_grade">
-                                                                                        <input type="hidden" name="grade_id" value="<?php echo $gr->id; ?>">
-                                                                                        <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 9px;">[حذف]</button>
+                                                                                        <input type="hidden" name="eess_org_action" value="delete_division">
+                                                                                        <input type="hidden" name="div_id" value="<?php echo $div->id; ?>">
+                                                                                        <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 10px;">[حذف]</button>
                                                                                     </form>
                                                                                 </div>
-                                                                                <!-- Classes -->
-                                                                                <div style="margin-right: 15px; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                                                                                <!-- Grades -->
+                                                                                <div style="margin-right: 15px; margin-top: 4px; border-right: 1px solid #cbd5e1; padding-right: 10px;">
                                                                                     <?php
-                                                                                    $gr_classes = array_filter($classes, function($c) use ($gr){ return $c->grade_id == $gr->id; });
-                                                                                    foreach ($gr_classes as $cl):
+                                                                                    $div_grades = array_filter($grades, function($g) use ($sch, $div){ return $g->school_id == $sch->id && ($g->division_id == $div->id || empty($g->division_id)); });
+                                                                                    foreach ($div_grades as $gr):
                                                                                     ?>
-                                                                                        <span style="background: #e2e8f0; color: #1e293b; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;">
-                                                                                            <span>👥 شعبة <?php echo esc_html($cl->name); ?></span>
-                                                                                            <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذه الشعبة؟')">
-                                                                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
-                                                                                                <input type="hidden" name="eess_save_org_structure" value="1">
-                                                                                                <input type="hidden" name="eess_org_action" value="delete_class">
-                                                                                                <input type="hidden" name="class_id" value="<?php echo $cl->id; ?>">
-                                                                                                <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 9px; padding: 0;">&times;</button>
-                                                                                            </form>
-                                                                                        </span>
+                                                                                        <div style="margin-bottom: 6px;">
+                                                                                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600;">
+                                                                                                <span>📚 <?php echo esc_html($gr->name); ?></span>
+                                                                                                <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذا الصف والشعب التابعة له؟')">
+                                                                                                    <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                                                                    <input type="hidden" name="eess_save_org_structure" value="1">
+                                                                                                    <input type="hidden" name="eess_org_action" value="delete_grade">
+                                                                                                    <input type="hidden" name="grade_id" value="<?php echo $gr->id; ?>">
+                                                                                                    <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 9px;">[حذف]</button>
+                                                                                                </form>
+                                                                                            </div>
+                                                                                            <!-- Classes -->
+                                                                                            <div style="margin-right: 15px; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                                                                                                <?php
+                                                                                                $gr_classes = array_filter($classes, function($c) use ($gr){ return $c->grade_id == $gr->id; });
+                                                                                                foreach ($gr_classes as $cl):
+                                                                                                ?>
+                                                                                                    <span style="background: #e2e8f0; color: #1e293b; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;">
+                                                                                                        <span>👥 شعبة <?php echo esc_html($cl->name); ?></span>
+                                                                                                        <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذه الشعبة؟')">
+                                                                                                            <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                                                                            <input type="hidden" name="eess_save_org_structure" value="1">
+                                                                                                            <input type="hidden" name="eess_org_action" value="delete_class">
+                                                                                                            <input type="hidden" name="class_id" value="<?php echo $cl->id; ?>">
+                                                                                                            <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 9px; padding: 0;">&times;</button>
+                                                                                                        </form>
+                                                                                                    </span>
+                                                                                                <?php endforeach; ?>
+                                                                                            </div>
+                                                                                        </div>
                                                                                     <?php endforeach; ?>
                                                                                 </div>
                                                                             </div>
@@ -1136,6 +1152,24 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
                                                 </select>
                                                 <input type="text" name="school_name" placeholder="اسم المدرسة" class="sm-input" required>
                                                 <button type="submit" class="sm-btn">إضافة مدرسة</button>
+                                            </form>
+                                        </div>
+
+                                        <!-- Add Division -->
+                                        <div style="background: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                            <h5 style="margin: 0 0 10px 0; font-weight: 800;">🔄 إضافة حلقة / نطاق للمدرسة (Cycle)</h5>
+                                            <form method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                <input type="hidden" name="eess_org_action" value="add_division">
+                                                <select name="school_id" class="sm-select" required>
+                                                    <option value="">-- اختر المدرسة --</option>
+                                                    <?php foreach ($schools as $sch): ?>
+                                                        <option value="<?php echo $sch->id; ?>"><?php echo esc_html($sch->name); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="text" name="div_name" placeholder="اسم الحلقة (مثال: الحلقة الثالثة - Cycle 3)" class="sm-input" required>
+                                                <button type="submit" class="sm-btn">إضافة حلقة</button>
                                             </form>
                                         </div>
 
