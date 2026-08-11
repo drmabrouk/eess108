@@ -326,4 +326,58 @@ class EESS_Org_Helper {
         global $wpdb;
         return $wpdb->delete("{$wpdb->prefix}eess_classes", array('id' => $id));
     }
+
+    public static function ensure_divisions_table_exists() {
+        global $wpdb;
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}eess_divisions'");
+        if (!$table_exists) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE {$wpdb->prefix}eess_divisions (
+                id bigint(20) NOT NULL AUTO_INCREMENT,
+                school_id bigint(20) NOT NULL,
+                name varchar(255) NOT NULL,
+                status varchar(50) DEFAULT 'active' NOT NULL,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                PRIMARY KEY  (id)
+            ) $charset_collate;";
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($sql);
+        }
+
+        // Add division_id column to eess_grades table if not exists
+        $row = $wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{$wpdb->prefix}eess_grades' AND COLUMN_NAME = 'division_id'");
+        if (empty($row)) {
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}eess_grades ADD COLUMN division_id bigint(20) DEFAULT NULL");
+        }
+
+        // Add division_id column to eess_user_assignments table if not exists
+        $row_assign = $wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{$wpdb->prefix}eess_user_assignments' AND COLUMN_NAME = 'division_id'");
+        if (empty($row_assign)) {
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}eess_user_assignments ADD COLUMN division_id bigint(20) DEFAULT NULL");
+        }
+    }
+
+    public static function get_divisions() {
+        global $wpdb;
+        self::ensure_divisions_table_exists();
+        return $wpdb->get_results("SELECT d.*, s.name as school_name FROM {$wpdb->prefix}eess_divisions d LEFT JOIN {$wpdb->prefix}eess_schools s ON d.school_id = s.id ORDER BY d.name ASC");
+    }
+
+    public static function add_division($school_id, $name) {
+        global $wpdb;
+        self::ensure_divisions_table_exists();
+        return $wpdb->insert("{$wpdb->prefix}eess_divisions", array('school_id' => $school_id, 'name' => $name, 'status' => 'active'));
+    }
+
+    public static function update_division($id, $name, $school_id) {
+        global $wpdb;
+        self::ensure_divisions_table_exists();
+        return $wpdb->update("{$wpdb->prefix}eess_divisions", array('name' => $name, 'school_id' => $school_id), array('id' => $id));
+    }
+
+    public static function delete_division($id) {
+        global $wpdb;
+        self::ensure_divisions_table_exists();
+        return $wpdb->delete("{$wpdb->prefix}eess_divisions", array('id' => $id));
+    }
 }
