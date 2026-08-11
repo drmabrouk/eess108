@@ -1895,8 +1895,7 @@ class SM_Public {
             update_user_meta($user_id, 'sm_specialization', sanitize_text_field($_POST['specialization']));
         }
 
-        $u = new WP_User($user_id);
-        $u->set_role(sanitize_text_field($_POST['user_role']));
+        SM_Settings::change_user_role($user_id, sanitize_text_field($_POST['user_role']), $_POST);
 
         if (isset($_POST['delete_photo_flag']) && $_POST['delete_photo_flag'] === '1') {
             delete_user_meta($user_id, 'eess_profile_photo');
@@ -2401,9 +2400,8 @@ class SM_Public {
         $result = wp_update_user($user_data);
         if (is_wp_error($result)) wp_send_json_error($result->get_error_message());
 
-        $u = new WP_User($user_id);
         $role = sanitize_text_field($_POST['role']);
-        $u->set_role($role);
+        SM_Settings::change_user_role($user_id, $role, $_POST);
 
         update_user_meta($user_id, 'sm_teacher_id', sanitize_text_field($_POST['teacher_id']));
         update_user_meta($user_id, 'sm_phone', sanitize_text_field($_POST['phone']));
@@ -2967,8 +2965,7 @@ class SM_Public {
                 }
                 wp_update_user($user_data);
                 
-                $u = new WP_User($user_id);
-                $u->set_role(sanitize_text_field($_POST['user_role']));
+                SM_Settings::change_user_role($user_id, sanitize_text_field($_POST['user_role']), $_POST);
 
                 wp_redirect(add_query_arg('sm_admin_msg', 'settings_saved', $_SERVER['REQUEST_URI']));
                 exit;

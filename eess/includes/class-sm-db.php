@@ -732,8 +732,7 @@ class SM_DB {
 
         update_user_meta($user_id, 'sm_temp_pass', $pass);
 
-        $user = new WP_User($user_id);
-        $user->set_role($data['role']);
+        SM_Settings::change_user_role($user_id, $data['role'], $data);
 
         // Update meta for any staff role
         self::update_teacher_data($user_id, $data);
