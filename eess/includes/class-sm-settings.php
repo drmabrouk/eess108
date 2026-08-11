@@ -886,6 +886,81 @@ class SM_Settings {
         update_option('sm_sidebar_visibility', $data);
     }
 
+    public static function change_user_role($user_id, $new_role, $additional_data = array()) {
+        $user = new WP_User($user_id);
+        if (!$user || empty($user->ID)) {
+            return false;
+        }
+
+        // 1. Set authoritative WordPress role (which strips old roles)
+        $user->set_role($new_role);
+
+        // 2. Map role back to the Arabic label
+        $role_map = array(
+            'administrator' => 'الإدارة المركزية (المطور)',
+            'sm_system_admin' => 'مدير النظام',
+            'sm_principal' => 'مدير المدرسة',
+            'sm_supervisor' => 'مشرف تربوي',
+            'sm_coordinator' => 'منسق مادة',
+            'sm_teacher' => 'معلم',
+            'sm_student' => 'طالب',
+            'sm_parent' => 'ولي أمر',
+            'sm_discipline_supervisor' => 'مشرف سلوك / انضباط',
+            'sm_activities_supervisor' => 'مشرف أنشطة',
+            'sm_transportation_supervisor' => 'مشرف نقل ومواصلات',
+            'sm_bus_supervisor' => 'مشرف حافلة',
+            'sm_clinic' => 'العيادة المدرسية',
+            'sm_hr' => 'الموارد البشرية (HR)'
+        );
+        $role_label = $role_map[$new_role] ?? $new_role;
+
+        // 3. Synchronize metadata and legacy role/job title fields
+        update_user_meta($user_id, 'sm_job_title', $role_label);
+        update_user_meta($user_id, 'sm_job_title_ar', $role_label);
+
+        // Update user meta roles or statuses
+        if ($new_role === 'sm_student') {
+            update_user_meta($user_id, 'sm_account_status', 'active');
+        } elseif ($new_role === 'sm_parent') {
+            update_user_meta($user_id, 'sm_account_status', 'active');
+        }
+
+        // Handle subject assignment
+        if (isset($additional_data['specialization'])) {
+            update_user_meta($user_id, 'sm_specialization', sanitize_text_field($additional_data['specialization']));
+        }
+
+        // 4. In Work Profile and Human Resources, synchronize immediately.
+        $hr_status = get_user_meta($user_id, 'eess_hr_employment_status', true);
+        if (empty($hr_status)) {
+            update_user_meta($user_id, 'eess_hr_employment_status', 'active');
+        }
+
+        // Add a timeline event to the Work Profile
+        $timeline = get_user_meta($user_id, 'eess_hr_activity_timeline', true) ?: array();
+        if (!is_array($timeline)) {
+            $timeline = array();
+        }
+        $actor_user = wp_get_current_user();
+        $actor = ($actor_user && $actor_user->display_name) ? $actor_user->display_name : 'النظام';
+        array_unshift($timeline, array(
+            'date' => current_time('Y-m-d H:i:s'),
+            'action' => 'تغيير الرتبة / المسمى الوظيفي',
+            'actor' => $actor,
+            'details' => "تم تغيير رتبة المستخدم إلى: $role_label"
+        ));
+        update_user_meta($user_id, 'eess_hr_activity_timeline', $timeline);
+
+        // 5. Invalidate caches immediately so that the new role, permissions, and sidebar appear instantly
+        global $wpdb;
+        $wpdb->query("DELETE FROM {$wpdb->prefix}options WHERE option_name LIKE '_transient_sm_%' OR option_name LIKE '_transient_timeout_sm_%'");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}options WHERE option_name LIKE '_transient_eess_%' OR option_name LIKE '_transient_timeout_eess_%'");
+        wp_cache_flush();
+        clean_user_cache($user_id);
+
+        return true;
+    }
+
     /**
      * Enforce UAE Phone Format (+971)
      */
