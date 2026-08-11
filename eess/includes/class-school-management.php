@@ -36,6 +36,7 @@ class School_Management {
         $this->loader->add_filter('get_avatar', $plugin_public, 'custom_user_avatar', 10, 3);
         $this->loader->add_action('admin_init', $plugin_public, 'restrict_admin_access');
         $this->loader->add_action('admin_init', $plugin_public, 'intercept_ajax_requests');
+        $this->loader->add_action('admin_init', $plugin_public, 'handle_form_submission');
         $this->loader->add_action('wp_enqueue_scripts', $plugin_public, 'enqueue_styles');
         $this->loader->add_action('init', $plugin_public, 'register_shortcodes');
         $this->loader->add_action('template_redirect', $plugin_public, 'handle_form_submission');

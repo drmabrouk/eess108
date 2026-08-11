@@ -510,6 +510,27 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
         <!-- CONTENT AREA -->
         <div class="sm-main-panel" style="flex: 1; min-width: 0; padding: 40px; background: #fff;">
             
+            <?php if (isset($_GET['sm_admin_msg'])):
+                $msg_type = sanitize_text_field($_GET['sm_admin_msg']);
+                $messages_map = array(
+                    'settings_saved' => 'تم حفظ الإعدادات والخيارات بنجاح ومزامنتها وتحديث القائمة فوراً مع كافة الأنظمة والرتب.',
+                    'student_added' => 'تمت إضافة الطالب بنجاح بالنظام.',
+                    'student_deleted' => 'تم حذف سجل الطالب وكافة بياناته بنجاح.',
+                    'restored' => 'تمت استعادة النسخة الاحتياطية بنجاح.',
+                    'demo_deleted' => 'تمت تهيئة النظام وحذف البيانات التجريبية بنجاح.',
+                    'csv_imported' => 'تم استيراد البيانات من ملف Excel بنجاح.',
+                    'error' => 'حدث خطأ غير متوقع. يرجى التحقق من البيانات وإعادة المحاولة.'
+                );
+                $msg_text = $messages_map[$msg_type] ?? '';
+                if ($msg_text):
+                    $is_error = ($msg_type === 'error');
+            ?>
+                <div class="sm-alert-banner" style="background: <?php echo $is_error ? '#fee2e2' : '#def7ec'; ?>; color: <?php echo $is_error ? '#991b1b' : '#03543f'; ?>; border: 1px solid <?php echo $is_error ? '#fca5a5' : '#bcf0da'; ?>; padding: 15px 20px; border-radius: 8px; margin-bottom: 25px; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 10px; font-family: 'Cairo', sans-serif;">
+                    <span><?php echo $is_error ? '❌' : '✅'; ?></span>
+                    <div><?php echo esc_html($msg_text); ?></div>
+                </div>
+            <?php endif; endif; ?>
+
             <?php
             // Unified Page Headers Map
             $header_map = array(

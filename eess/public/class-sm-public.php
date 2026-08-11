@@ -2915,6 +2915,12 @@ class SM_Public {
     }
 
     public function handle_form_submission() {
+        static $processed = false;
+        if ($processed) {
+            return;
+        }
+        $processed = true;
+
         // Handle Hierarchical Violations Save
         if (isset($_POST['sm_save_hierarchical_violations']) && wp_verify_nonce($_POST['sm_admin_nonce'], 'sm_admin_action')) {
             if (current_user_can('إدارة_النظام')) {
