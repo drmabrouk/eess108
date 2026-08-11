@@ -4,12 +4,16 @@ class SM_DB {
     public static function get_students($filters = array()) {
         global $wpdb;
 
+        // Auto-resolve any unmapped students first (Self-healing backfill)
+        EESS_Org_Helper::ensure_all_students_resolved();
+
         $user = wp_get_current_user();
         $is_teacher = in_array('sm_teacher', (array)$user->roles);
         $is_supervisor = in_array('sm_supervisor', (array)$user->roles);
 
-        // Optimized: Reduced wildcard usage for student_code if it looks like a code
-        $query = "SELECT * FROM {$wpdb->prefix}sm_students WHERE 1=1";
+        // Enforce organizational scope constraint
+        $scope_filter = EESS_Org_Helper::filter_students_query();
+        $query = "SELECT * FROM {$wpdb->prefix}sm_students WHERE " . $scope_filter;
 
         $is_searching = !empty($filters['search']);
 
@@ -163,7 +167,12 @@ class SM_DB {
                 'sort_order' => $sort_order
             )
         );
-        return $success ? $wpdb->insert_id : false;
+        if ($success) {
+            $student_id = $wpdb->insert_id;
+            EESS_Org_Helper::resolve_student_org_ids($student_id, $class, $section);
+            return $student_id;
+        }
+        return false;
     }
 
     public static function update_student($id, $data) {
@@ -192,11 +201,18 @@ class SM_DB {
 
         if (empty($update_data)) return false;
 
-        return $wpdb->update(
+        $result = $wpdb->update(
             "{$wpdb->prefix}sm_students",
             $update_data,
             array('id' => $id)
         );
+        if ($result !== false && (isset($data['class_name']) || isset($data['section']))) {
+            $current = self::get_student_by_id($id);
+            if ($current) {
+                EESS_Org_Helper::resolve_student_org_ids($id, $current->class_name, $current->section);
+            }
+        }
+        return $result !== false;
     }
 
     public static function update_record($id, $data) {
@@ -300,7 +316,8 @@ class SM_DB {
 
     public static function get_records($filters = array()) {
         global $wpdb;
-        $query = "SELECT r.*, s.name as student_name, s.class_name, s.section, s.guardian_phone, s.parent_email, s.student_code FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id WHERE 1=1";
+        $scope_filter = EESS_Org_Helper::filter_students_query('s');
+        $query = "SELECT r.*, s.name as student_name, s.class_name, s.section, s.guardian_phone, s.parent_email, s.student_code FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id WHERE " . $scope_filter;
         
         if (!empty($filters['student_id'])) {
             $query .= $wpdb->prepare(" AND r.student_id = %d", $filters['student_id']);
@@ -513,8 +530,10 @@ class SM_DB {
     public static function get_statistics($filters = array()) {
         global $wpdb;
         $stats = array();
-        
-        $where = " WHERE 1=1";
+
+        // Enforce organizational scope filtering on students and violations
+        $scope_filter = EESS_Org_Helper::filter_students_query('s');
+        $where = " WHERE " . $scope_filter;
         if (!empty($filters['teacher_id'])) {
             $where .= $wpdb->prepare(" AND r.teacher_id = %d", $filters['teacher_id']);
         }
@@ -522,27 +541,23 @@ class SM_DB {
             $where .= $wpdb->prepare(" AND r.student_id = %d", $filters['student_id']);
         }
 
-        $stats['by_type'] = $wpdb->get_results("SELECT type, COUNT(*) as count FROM {$wpdb->prefix}sm_records r $where GROUP BY type");
-        $stats['by_severity'] = $wpdb->get_results("SELECT severity, COUNT(*) as count FROM {$wpdb->prefix}sm_records r $where GROUP BY severity");
-        $stats['by_degree'] = $wpdb->get_results("SELECT degree, COUNT(*) as count FROM {$wpdb->prefix}sm_records r $where GROUP BY degree ORDER BY degree ASC");
+        $stats['by_type'] = $wpdb->get_results("SELECT r.type, COUNT(*) as count FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id $where GROUP BY r.type");
+        $stats['by_severity'] = $wpdb->get_results("SELECT r.severity, COUNT(*) as count FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id $where GROUP BY r.severity");
+        $stats['by_degree'] = $wpdb->get_results("SELECT r.degree, COUNT(*) as count FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id $where GROUP BY r.degree ORDER BY r.degree ASC");
         $stats['by_class'] = $wpdb->get_results("SELECT s.class_name, COUNT(r.id) as count FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id $where GROUP BY s.class_name");
         
-        if (!empty($filters['teacher_id'])) {
-            $stats['total_students'] = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}sm_students WHERE teacher_id = %d", $filters['teacher_id']));
-        } else {
-            $stats['total_students'] = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}sm_students");
-        }
+        $stats['total_students'] = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}sm_students s WHERE $scope_filter");
 
         $stats['total_teachers'] = count(get_users(array('role' => 'sm_teacher')));
         
-        // Optimized: Combined counts in a single query
+        // Optimized: Combined counts in a single query with joins
         $summary_counts = $wpdb->get_row("
             SELECT
                 COUNT(CASE WHEN DATE(r.created_at) = CURDATE() THEN 1 END) as violations_today,
                 COUNT(CASE WHEN r.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as violations_week,
                 COUNT(CASE WHEN r.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as violations_month,
                 COUNT(CASE WHEN r.action_taken != '' THEN 1 END) as total_actions
-            FROM {$wpdb->prefix}sm_records r $where
+            FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id $where
         ");
 
         $stats['violations_today'] = $summary_counts->violations_today;
@@ -554,9 +569,9 @@ class SM_DB {
         $today = current_time('Y-m-d');
         $attendance_counts = $wpdb->get_row($wpdb->prepare("
             SELECT
-                COUNT(CASE WHEN status = 'present' THEN 1 END) as present_today,
-                COUNT(CASE WHEN status = 'absent' THEN 1 END) as absent_today
-            FROM {$wpdb->prefix}sm_attendance WHERE date = %s
+                COUNT(CASE WHEN a.status = 'present' THEN 1 END) as present_today,
+                COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as absent_today
+            FROM {$wpdb->prefix}sm_attendance a JOIN {$wpdb->prefix}sm_students s ON a.student_id = s.id WHERE a.date = %s AND $scope_filter
         ", $today));
 
         $stats['present_today'] = (int)$attendance_counts->present_today;
@@ -574,7 +589,7 @@ class SM_DB {
 
         $stats['trends'] = $wpdb->get_results("
             SELECT DATE(r.created_at) as date, COUNT(*) as count
-            FROM {$wpdb->prefix}sm_records r
+            FROM {$wpdb->prefix}sm_records r JOIN {$wpdb->prefix}sm_students s ON r.student_id = s.id
             $where AND r.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             GROUP BY DATE(r.created_at)
             ORDER BY date ASC

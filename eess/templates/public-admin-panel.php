@@ -1000,97 +1000,322 @@ $greeting = ($hour >= 5 && $hour < 12) ? 'صباح الخير' : 'مساء ال�
                             </form>
                         </div>
                         <div id="school-structure" class="sm-internal-tab" style="display:none;">
-                            <?php
-                            $academic = SM_Settings::get_academic_structure();
-                            $db_structure = SM_Settings::get_sections_from_db();
-                            ?>
-                            <form method="post" id="sm-academic-structure-form">
-                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                            <div class="sm-tabs-wrapper" style="display: flex; gap: 10px; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 10px; overflow-x: auto;">
+                                <button class="eess-org-sub-tab-btn sm-tab-btn sm-active" onclick="eessOpenOrgSubTab('eess-org-tree-tab', this)">🏫 الهيكل التعليمي والأكاديمي</button>
+                                <button class="eess-org-sub-tab-btn sm-tab-btn" onclick="eessOpenOrgSubTab('eess-org-assignments-tab', this)">👤 التكليفات والتعيينات</button>
+                                <button class="eess-org-sub-tab-btn sm-tab-btn" onclick="eessOpenOrgSubTab('eess-org-import-tab', this)">📥 استيراد البيانات المؤسسية</button>
+                            </div>
 
-                                <h4 style="margin-top:0; border-bottom:1px solid #eee; padding-bottom:10px;">التقويم الأكاديمي (UAE Framework)</h4>
-                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; margin-bottom:30px;">
-                                    <?php for($i=1; $i<=3; $i++): ?>
-                                    <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
-                                        <div style="font-weight:700; margin-bottom:10px; color:var(--sm-primary-color);">الفصل الدراسي <?php echo $i; ?></div>
-                                        <div class="sm-form-group">
-                                            <label class="sm-label" style="font-size:11px;">تاريخ البدء:</label>
-                                            <input type="date" name="term_dates[term<?php echo $i; ?>][start]" value="<?php echo esc_attr($academic['term_dates']["term$i"]['start'] ?? ''); ?>" class="sm-input">
-                                        </div>
-                                        <div class="sm-form-group">
-                                            <label class="sm-label" style="font-size:11px;">تاريخ الانتهاء:</label>
-                                            <input type="date" name="term_dates[term<?php echo $i; ?>][end]" value="<?php echo esc_attr($academic['term_dates']["term$i"]['end'] ?? ''); ?>" class="sm-input">
+                            <script>
+                            function eessOpenOrgSubTab(tabId, el) {
+                                document.querySelectorAll('.eess-org-sub-tab-content').forEach(p => p.style.setProperty('display', 'none', 'important'));
+                                document.getElementById(tabId).style.setProperty('display', 'block', 'important');
+                                el.parentElement.querySelectorAll('.eess-org-sub-tab-btn').forEach(b => b.classList.remove('sm-active'));
+                                el.classList.add('sm-active');
+                            }
+                            </script>
+
+                            <!-- SUB-TAB 1: HIERARCHICAL TREE -->
+                            <div id="eess-org-tree-tab" class="eess-org-sub-tab-content" style="display: block;">
+                                <?php
+                                $institutions = EESS_Org_Helper::get_institutions();
+                                $schools = EESS_Org_Helper::get_schools();
+                                $grades = EESS_Org_Helper::get_grades();
+                                $classes = EESS_Org_Helper::get_classes();
+                                ?>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                    <!-- List Area -->
+                                    <div style="background: #fff; padding: 20px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                        <h4 style="margin: 0 0 15px 0; font-weight: 800; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px;">📋 الهيكل الحالي</h4>
+                                        <div style="max-height: 500px; overflow-y: auto;">
+                                            <?php if (empty($institutions)): ?>
+                                                <p style="color: #64748b; text-align: center;">الهيكل فارغ حالياً.</p>
+                                            <?php else: ?>
+                                                <?php foreach ($institutions as $inst): ?>
+                                                    <div style="background: #f8fafc; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #cbd5e1;">
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 800; color: #1e293b;">
+                                                            <span>🏛️ <?php echo esc_html($inst->name); ?></span>
+                                                            <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذه المؤسسة وكافة الفروع التابعة لها؟')">
+                                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                                <input type="hidden" name="eess_org_action" value="delete_institution">
+                                                                <input type="hidden" name="inst_id" value="<?php echo $inst->id; ?>">
+                                                                <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 11px;">[حذف]</button>
+                                                            </form>
+                                                        </div>
+                                                        <!-- Schools -->
+                                                        <div style="margin-right: 20px; margin-top: 8px; border-right: 2px dashed #cbd5e1; padding-right: 15px;">
+                                                            <?php
+                                                            $inst_schools = array_filter($schools, function($s) use ($inst){ return $s->institution_id == $inst->id; });
+                                                            foreach ($inst_schools as $sch):
+                                                            ?>
+                                                                <div style="margin-bottom: 8px;">
+                                                                    <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: var(--sm-primary-color); font-size: 13px;">
+                                                                        <span>🏫 <?php echo esc_html($sch->name); ?></span>
+                                                                        <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذه المدرسة والصفوف التابعة لها؟')">
+                                                                            <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                                            <input type="hidden" name="eess_save_org_structure" value="1">
+                                                                            <input type="hidden" name="eess_org_action" value="delete_school">
+                                                                            <input type="hidden" name="school_id" value="<?php echo $sch->id; ?>">
+                                                                            <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 10px;">[حذف]</button>
+                                                                        </form>
+                                                                    </div>
+                                                                    <!-- Grades -->
+                                                                    <div style="margin-right: 15px; margin-top: 4px; border-right: 1px solid #cbd5e1; padding-right: 10px;">
+                                                                        <?php
+                                                                        $sch_grades = array_filter($grades, function($g) use ($sch){ return $g->school_id == $sch->id; });
+                                                                        foreach ($sch_grades as $gr):
+                                                                        ?>
+                                                                            <div style="margin-bottom: 6px;">
+                                                                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600;">
+                                                                                    <span>📚 <?php echo esc_html($gr->name); ?></span>
+                                                                                    <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذا الصف والشعب التابعة له؟')">
+                                                                                        <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                                                        <input type="hidden" name="eess_save_org_structure" value="1">
+                                                                                        <input type="hidden" name="eess_org_action" value="delete_grade">
+                                                                                        <input type="hidden" name="grade_id" value="<?php echo $gr->id; ?>">
+                                                                                        <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 9px;">[حذف]</button>
+                                                                                    </form>
+                                                                                </div>
+                                                                                <!-- Classes -->
+                                                                                <div style="margin-right: 15px; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                                                                                    <?php
+                                                                                    $gr_classes = array_filter($classes, function($c) use ($gr){ return $c->grade_id == $gr->id; });
+                                                                                    foreach ($gr_classes as $cl):
+                                                                                    ?>
+                                                                                        <span style="background: #e2e8f0; color: #1e293b; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px;">
+                                                                                            <span>👥 شعبة <?php echo esc_html($cl->name); ?></span>
+                                                                                            <form method="post" style="display: inline;" onsubmit="return confirm('حذف هذه الشعبة؟')">
+                                                                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                                                                <input type="hidden" name="eess_org_action" value="delete_class">
+                                                                                                <input type="hidden" name="class_id" value="<?php echo $cl->id; ?>">
+                                                                                                <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 9px; padding: 0;">&times;</button>
+                                                                                            </form>
+                                                                                        </span>
+                                                                                    <?php endforeach; ?>
+                                                                                </div>
+                                                                            </div>
+                                                                        <?php endforeach; ?>
+                                                                    </div>
+                                                                </div>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
-                                    <?php endfor; ?>
-                                </div>
 
-                                <h4 style="border-bottom:1px solid #eee; padding-bottom:10px;">المراحل التعليمية</h4>
-                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; margin-bottom:30px;">
-                                    <?php foreach($academic['academic_stages'] as $index => $stage): ?>
-                                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
-                                        <div class="sm-form-group">
-                                            <label class="sm-label">اسم المرحلة:</label>
-                                            <input type="text" name="academic_stages[<?php echo $index; ?>][name]" value="<?php echo esc_attr($stage['name']); ?>" class="sm-input">
+                                    <!-- Forms Area -->
+                                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                                        <!-- Add Institution -->
+                                        <div style="background: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                            <h5 style="margin: 0 0 10px 0; font-weight: 800;">🏛️ إضافة مؤسسة تعليمية جديدة</h5>
+                                            <form method="post" style="display: flex; gap: 10px;">
+                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                <input type="hidden" name="eess_org_action" value="add_institution">
+                                                <input type="text" name="inst_name" placeholder="اسم المؤسسة" class="sm-input" required style="flex: 1;">
+                                                <button type="submit" class="sm-btn">إضافة</button>
+                                            </form>
                                         </div>
-                                        <div style="display:flex; gap:10px;">
-                                            <div class="sm-form-group" style="flex:1;">
-                                                <label class="sm-label">من صف:</label>
-                                                <input type="number" name="academic_stages[<?php echo $index; ?>][start]" value="<?php echo esc_attr($stage['start']); ?>" class="sm-input">
-                                            </div>
-                                            <div class="sm-form-group" style="flex:1;">
-                                                <label class="sm-label">إلى صف:</label>
-                                                <input type="number" name="academic_stages[<?php echo $index; ?>][end]" value="<?php echo esc_attr($stage['end']); ?>" class="sm-input">
-                                            </div>
+
+                                        <!-- Add School -->
+                                        <div style="background: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                            <h5 style="margin: 0 0 10px 0; font-weight: 800;">🏫 إضافة مدرسة جديدة</h5>
+                                            <form method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                <input type="hidden" name="eess_org_action" value="add_school">
+                                                <select name="inst_id" class="sm-select" required>
+                                                    <option value="">-- اختر المؤسسة --</option>
+                                                    <?php foreach ($institutions as $inst): ?>
+                                                        <option value="<?php echo $inst->id; ?>"><?php echo esc_html($inst->name); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="text" name="school_name" placeholder="اسم المدرسة" class="sm-input" required>
+                                                <button type="submit" class="sm-btn">إضافة مدرسة</button>
+                                            </form>
+                                        </div>
+
+                                        <!-- Add Grade -->
+                                        <div style="background: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                            <h5 style="margin: 0 0 10px 0; font-weight: 800;">📚 إضافة صف دراسي</h5>
+                                            <form method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                <input type="hidden" name="eess_org_action" value="add_grade">
+                                                <select name="school_id" class="sm-select" required>
+                                                    <option value="">-- اختر المدرسة --</option>
+                                                    <?php foreach ($schools as $sch): ?>
+                                                        <option value="<?php echo $sch->id; ?>"><?php echo esc_html($sch->name); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="text" name="grade_name" placeholder="اسم الصف (مثال: الصف 12)" class="sm-input" required>
+                                                <button type="submit" class="sm-btn">إضافة صف</button>
+                                            </form>
+                                        </div>
+
+                                        <!-- Add Class -->
+                                        <div style="background: #f8fafc; padding: 15px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                            <h5 style="margin: 0 0 10px 0; font-weight: 800;">👥 إضافة شعبة / فصل</h5>
+                                            <form method="post" style="display: flex; flex-direction: column; gap: 10px;">
+                                                <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                                <input type="hidden" name="eess_save_org_structure" value="1">
+                                                <input type="hidden" name="eess_org_action" value="add_class">
+                                                <select name="grade_id" class="sm-select" required>
+                                                    <option value="">-- اختر الصف --</option>
+                                                    <?php foreach ($grades as $gr): ?>
+                                                        <option value="<?php echo $gr->id; ?>"><?php echo esc_html($gr->school_name . ' - ' . $gr->name); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="text" name="class_name" placeholder="رمز الشعبة (مثال: أ)" class="sm-input" required>
+                                                <button type="submit" class="sm-btn">إضافة شعبة</button>
+                                            </form>
                                         </div>
                                     </div>
-                                    <?php endforeach; ?>
                                 </div>
+                            </div>
 
-                                <h4 style="border-bottom:1px solid #eee; padding-bottom:10px;">إدارة الصفوف والشعب (تلقائي)</h4>
-                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:30px;">
-                                    <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
-                                        <div class="sm-form-group">
-                                            <label class="sm-label">إجمالي عدد الصفوف:</label>
-                                            <input type="number" name="grades_count" value="<?php echo esc_attr($academic['grades_count']); ?>" class="sm-input" min="1" max="15">
+                            <!-- SUB-TAB 2: EMPLOYEE ASSIGNMENTS -->
+                            <div id="eess-org-assignments-tab" class="eess-org-sub-tab-content" style="display: none;">
+                                <?php
+                                $staff_members = get_users(array('role__not_in' => array('sm_student', 'sm_parent')));
+                                ?>
+                                <div style="background: #fff; padding: 25px; border: 1px solid #cbd5e1; border-radius: 8px; max-width: 700px; margin: 0 auto;">
+                                    <h4 style="margin: 0 0 20px 0; font-weight: 800; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">👤 توزيع تكليفات الموظفين والمعلمين</h4>
+                                    <form method="post">
+                                        <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                        <input type="hidden" name="eess_save_org_structure" value="1">
+                                        <input type="hidden" name="eess_org_action" value="save_assignment">
+
+                                        <div class="sm-form-group" style="margin-bottom: 15px;">
+                                            <label class="sm-label" style="font-weight: 700;">الموظف / المعلم المراد تعيينه:</label>
+                                            <select name="assign_user_id" class="sm-select" required onchange="eessLoadUserAssignments(this.value)">
+                                                <option value="">-- اختر الموظف --</option>
+                                                <?php foreach ($staff_members as $sm): ?>
+                                                    <option value="<?php echo $sm->ID; ?>"><?php echo esc_html($sm->display_name . ' (' . ($role_map[$sm->roles[0]] ?? $sm->roles[0]) . ')'); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
-                                        <div class="sm-form-group">
-                                            <label class="sm-label">الصفوف النشطة:</label>
-                                            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; background:#f8fafc; padding:10px; border-radius:8px;">
-                                                <?php for($i=1; $i<=$academic['grades_count']; $i++): ?>
-                                                <label style="font-size:12px; display:flex; align-items:center; gap:5px;">
-                                                    <input type="checkbox" name="active_grades[]" value="<?php echo $i; ?>" <?php checked(in_array($i, $academic['active_grades'] ?? [])); ?>> صف <?php echo $i; ?>
-                                                </label>
-                                                <?php endfor; ?>
+
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                                            <div>
+                                                <label class="sm-label" style="font-weight: 700;">المدارس المتاحة:</label>
+                                                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; max-height: 200px; overflow-y: auto;">
+                                                    <?php foreach ($schools as $sch): ?>
+                                                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; cursor: pointer;">
+                                                            <input type="checkbox" name="assign_school_id[]" value="<?php echo $sch->id; ?>" class="assign-school-cb">
+                                                            <span><?php echo esc_html($sch->name); ?></span>
+                                                        </label>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label class="sm-label" style="font-weight: 700;">الشعب والفصول المتاحة:</label>
+                                                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; max-height: 200px; overflow-y: auto;">
+                                                    <?php foreach ($classes as $cl): ?>
+                                                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; cursor: pointer;">
+                                                            <input type="checkbox" name="assign_class_id[]" value="<?php echo $cl->id; ?>" class="assign-class-cb">
+                                                            <span><?php echo esc_html($cl->school_name . ' - ' . $cl->grade_name . ' شعبة ' . $cl->name); ?></span>
+                                                        </label>
+                                                    <?php endforeach; ?>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid #e2e8f0; grid-column: span 2;">
-                                        <label class="sm-label">الشعب المسجلة لكل صف (تؤخذ من بيانات الطلاب):</label>
-                                        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; background:#f8fafc; padding:15px; border-radius:8px; max-height: 400px; overflow-y: auto;">
-                                            <?php for($i=1; $i<=$academic['grades_count']; $i++):
-                                                $sections = $db_structure[$i] ?? array();
-                                            ?>
-                                            <div style="border:1px solid #e2e8f0; padding:10px; border-radius:6px; background:white;">
-                                                <div style="font-weight:700; margin-bottom:8px; font-size:12px; border-bottom:1px solid #eee; padding-bottom:5px;">الصف <?php echo $i; ?></div>
-                                                <div style="font-size:11px; color:var(--sm-text-gray);">عدد الشعب: <strong><?php echo count($sections); ?></strong></div>
-                                                <div style="font-size:11px; color:var(--sm-text-gray); margin-top:5px;">الرموز: <span style="color:var(--sm-primary-color); font-weight:700;"><?php echo !empty($sections) ? implode(', ', $sections) : '---'; ?></span></div>
-                                            </div>
-                                            <?php endfor; ?>
+
+                                        <button type="submit" class="sm-btn" style="width: 100%;">حفظ التكليفات والمزامنة فوراً</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <script>
+                            function eessLoadUserAssignments(userId) {
+                                if (!userId) {
+                                    document.querySelectorAll('.assign-school-cb, .assign-class-cb').forEach(cb => cb.checked = false);
+                                    return;
+                                }
+                                // Quick AJAX check or fetch user metadata
+                                // For simplicity and speed, we will auto-load them based on the assignments table
+                                fetch('<?php echo admin_url('admin-ajax.php'); ?>?action=eess_get_user_assignments&user_id=' + userId)
+                                .then(r => r.json())
+                                .then(res => {
+                                    if (res.success) {
+                                        document.querySelectorAll('.assign-school-cb').forEach(cb => {
+                                            cb.checked = res.data.schools.includes(parseInt(cb.value));
+                                        });
+                                        document.querySelectorAll('.assign-class-cb').forEach(cb => {
+                                            cb.checked = res.data.classes.includes(parseInt(cb.value));
+                                        });
+                                    }
+                                });
+                            }
+                            </script>
+
+                            <!-- SUB-TAB 3: DATA IMPORTER (CSV IMPORTER) -->
+                            <div id="eess-org-import-tab" class="eess-org-sub-tab-content" style="display: none;">
+                                <div style="background: #fff; padding: 25px; border: 1px solid #cbd5e1; border-radius: 8px; max-width: 700px; margin: 0 auto;">
+                                    <h4 style="margin: 0 0 15px 0; font-weight: 800; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">📥 استيراد وإدارة البيانات المؤسسية (CSV)</h4>
+                                    <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">قم برفع ملفات البيانات المؤسسية ليقوم النظام تلقائياً بإنشاء الحسابات، وتعيين الأدوار، وبناء الهيكل الهرمي الأكاديمي.</p>
+
+                                    <form method="post" enctype="multipart/form-data">
+                                        <?php wp_nonce_field('sm_admin_action', 'sm_admin_nonce'); ?>
+                                        <input type="hidden" name="eess_import_org_csv" value="1">
+
+                                        <div class="sm-form-group" style="margin-bottom: 15px;">
+                                            <label class="sm-label" style="font-weight: 700;">نوع ملف الاستيراد:</label>
+                                            <select name="import_type" id="eess-import-type-select" class="sm-select" required onchange="eessShowImportTemplate(this.value)">
+                                                <option value="">-- اختر نوع الملف --</option>
+                                                <option value="students">ملف الطلاب (Students File)</option>
+                                                <option value="teachers">ملف المعلمين (Teachers File)</option>
+                                                <option value="managers">ملف مدراء المدارس (Managers File)</option>
+                                            </select>
                                         </div>
-                                        <p style="font-size:11px; color:#718096; margin-top:10px;">ملاحظة: لا يمكن تعديل الشعب يدوياً، يتم تحديثها تلقائياً عند إضافة أو استيراد الطلاب.</p>
-                                    </div>
-                                </div>
 
-                                <div style="background:#f0fff4; border:1px solid #c6f6d5; border-radius:8px; padding:15px; margin-bottom:25px;">
-                                    <p style="margin:0; font-size:13px; color:#2f855a; font-weight:700;">💡 نظام التسمية الموحد:</p>
-                                    <ul style="margin:10px 0 0 0; font-size:12px; color:#276749;">
-                                        <li>التنسيق الكامل: <strong>الصف 12 شعبة أ</strong></li>
-                                        <li>التنسيق المختصر: <strong>12 أ</strong></li>
-                                    </ul>
-                                </div>
+                                        <!-- Templates Info -->
+                                        <div id="eess-import-template-info" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-bottom: 20px; font-size: 11px; line-height: 1.6; display: none;">
+                                            <div id="template-students" style="display: none;">
+                                                <strong>الترتيب المطلوب لأعمدة الملف (CSV):</strong><br>
+                                                <code>الاسم الكامل, الصف الدراسي, رمز الشعبة, بريد ولي الأمر, هاتف ولي الأمر, الرقم القومي / الهوية, اسم المدرسة</code><br>
+                                                <span style="color: #64748b;">مثال: أحمد محمد, الصف 12, أ, parent@example.com, 0501234567, 784-1234-1234567-1, مدرسة الأمل للتعليم الأساسي</span>
+                                            </div>
+                                            <div id="template-teachers" style="display: none;">
+                                                <strong>الترتيب المطلوب لأعمدة الملف (CSV):</strong><br>
+                                                <code>اسم المستخدم, البريد الإلكتروني, الاسم الكامل, رقم الهاتف, كلمة المرور, المادة التخصصية, اسم المدرسة, الصفوف والشعب المكلف بها (مفصولة بفاصلة)</code><br>
+                                                <span style="color: #64748b;">مثال: teacher1, teacher@school.gov.ae, منى علي, 0507654321, Pass123, الرياضيات, مدرسة الأمل للتعليم الأساسي, 12|أ, 11|ب</span>
+                                            </div>
+                                            <div id="template-managers" style="display: none;">
+                                                <strong>الترتيب المطلوب لأعمدة الملف (CSV):</strong><br>
+                                                <code>اسم المستخدم, البريد الإلكتروني, الاسم الكامل, رقم الهاتف, كلمة المرور, اسم المدرسة المكلف بإدارتها</code><br>
+                                                <span style="color: #64748b;">مثال: principal1, principal@school.gov.ae, محمد حسن, 0509876543, Pass456, مدرسة الأمل للتعليم الأساسي</span>
+                                            </div>
+                                        </div>
 
-                                <button type="submit" name="sm_save_academic_structure" class="sm-btn" style="width:auto; padding:0 40px; height:45px;">حفظ الهيكل المدرسي</button>
-                            </form>
+                                        <script>
+                                        function eessShowImportTemplate(type) {
+                                            const info = document.getElementById('eess-import-template-info');
+                                            if (!type) {
+                                                info.style.display = 'none';
+                                                return;
+                                            }
+                                            info.style.display = 'block';
+                                            document.getElementById('template-students').style.display = type === 'students' ? 'block' : 'none';
+                                            document.getElementById('template-teachers').style.display = type === 'teachers' ? 'block' : 'none';
+                                            document.getElementById('template-managers').style.display = type === 'managers' ? 'block' : 'none';
+                                        }
+                                        </script>
+
+                                        <div class="sm-form-group" style="margin-bottom: 20px;">
+                                            <label class="sm-label" style="font-weight: 700;">اختر ملف CSV المعتمد:</label>
+                                            <input type="file" name="csv_file" class="sm-input" accept=".csv" required style="height: auto; padding: 6px;">
+                                        </div>
+
+                                        <button type="submit" class="sm-btn" style="width: 100%;">بدء الاستيراد والمزامنة الفورية</button>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
 
                         <div id="backup-settings" class="sm-internal-tab" style="display:none;">

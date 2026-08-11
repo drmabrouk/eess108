@@ -2921,6 +2921,227 @@ class SM_Public {
         }
         $processed = true;
 
+        // Handle Organizational & Administrative Structure CRUD and Assignments
+        if (isset($_POST['eess_save_org_structure']) && wp_verify_nonce($_POST['sm_admin_nonce'], 'sm_admin_action')) {
+            if (current_user_can('إدارة_النظام')) {
+                $action_type = sanitize_text_field($_POST['eess_org_action']);
+
+                if ($action_type === 'add_institution') {
+                    EESS_Org_Helper::add_institution(sanitize_text_field($_POST['inst_name']));
+                } elseif ($action_type === 'edit_institution') {
+                    EESS_Org_Helper::update_institution(intval($_POST['inst_id']), sanitize_text_field($_POST['inst_name']));
+                } elseif ($action_type === 'delete_institution') {
+                    EESS_Org_Helper::delete_institution(intval($_POST['inst_id']));
+                }
+
+                elseif ($action_type === 'add_school') {
+                    EESS_Org_Helper::add_school(intval($_POST['inst_id']), sanitize_text_field($_POST['school_name']));
+                } elseif ($action_type === 'edit_school') {
+                    EESS_Org_Helper::update_school(intval($_POST['school_id']), sanitize_text_field($_POST['school_name']), intval($_POST['inst_id']));
+                } elseif ($action_type === 'delete_school') {
+                    EESS_Org_Helper::delete_school(intval($_POST['school_id']));
+                }
+
+                elseif ($action_type === 'add_grade') {
+                    EESS_Org_Helper::add_grade(intval($_POST['school_id']), sanitize_text_field($_POST['grade_name']));
+                } elseif ($action_type === 'edit_grade') {
+                    EESS_Org_Helper::update_grade(intval($_POST['grade_id']), sanitize_text_field($_POST['grade_name']), intval($_POST['school_id']));
+                } elseif ($action_type === 'delete_grade') {
+                    EESS_Org_Helper::delete_grade(intval($_POST['grade_id']));
+                }
+
+                elseif ($action_type === 'add_class') {
+                    EESS_Org_Helper::add_class(intval($_POST['grade_id']), sanitize_text_field($_POST['class_name']));
+                } elseif ($action_type === 'edit_class') {
+                    EESS_Org_Helper::update_class(intval($_POST['class_id']), sanitize_text_field($_POST['class_name']), intval($_POST['grade_id']));
+                } elseif ($action_type === 'delete_class') {
+                    EESS_Org_Helper::delete_class(intval($_POST['class_id']));
+                }
+
+                elseif ($action_type === 'save_assignment') {
+                    $user_id = intval($_POST['assign_user_id']);
+                    $assignment_data = array(
+                        'institutions' => isset($_POST['assign_inst_id']) ? array_map('intval', (array)$_POST['assign_inst_id']) : array(),
+                        'schools' => isset($_POST['assign_school_id']) ? array_map('intval', (array)$_POST['assign_school_id']) : array(),
+                        'grades' => isset($_POST['assign_grade_id']) ? array_map('intval', (array)$_POST['assign_grade_id']) : array(),
+                        'classes' => isset($_POST['assign_class_id']) ? array_map('intval', (array)$_POST['assign_class_id']) : array()
+                    );
+                    EESS_Org_Helper::save_user_assignments($user_id, $assignment_data);
+                }
+
+                wp_redirect(add_query_arg('sm_admin_msg', 'settings_saved', $_SERVER['REQUEST_URI']));
+                exit;
+            }
+        }
+
+        // Handle Centralized Institutional Data Imports (CSV Parser)
+        if (isset($_POST['eess_import_org_csv']) && wp_verify_nonce($_POST['sm_admin_nonce'], 'sm_admin_action')) {
+            if (current_user_can('إدارة_النظام') && !empty($_FILES['csv_file']['tmp_name'])) {
+                $import_type = sanitize_text_field($_POST['import_type']);
+                $handle = fopen($_FILES['csv_file']['tmp_name'], "r");
+                $header = fgetcsv($handle); // skip header
+                $count = 0;
+
+                while (($data = fgetcsv($handle)) !== FALSE) {
+                    // Normalize data encoding
+                    foreach ($data as $k => $v) {
+                        $encoding = mb_detect_encoding($v, array('UTF-8', 'ISO-8859-6', 'ISO-8859-1'), true);
+                        if ($encoding && $encoding != 'UTF-8') {
+                            $data[$k] = mb_convert_encoding($v, 'UTF-8', $encoding);
+                        }
+                        $data[$k] = trim($data[$k]);
+                    }
+
+                    if ($import_type === 'students') {
+                        // Mapping: name, class_name, section, parent_email, guardian_phone, national_id, school_name
+                        if (count($data) >= 2) {
+                            $name = $data[0];
+                            $class = $data[1];
+                            $section = $data[2] ?? '';
+                            $email = $data[3] ?? '';
+                            $phone = $data[4] ?? '';
+                            $national_id = $data[5] ?? '';
+                            $school_name = $data[6] ?? '';
+
+                            // Check if student exists, otherwise create
+                            $student_id = SM_DB::student_exists($name, $class, $section, $national_id);
+                            if ($student_id) {
+                                SM_DB::update_student($student_id, array(
+                                    'name' => $name,
+                                    'class_name' => $class,
+                                    'section' => $section,
+                                    'parent_email' => $email,
+                                    'guardian_phone' => $phone,
+                                    'national_id' => $national_id
+                                ));
+                            } else {
+                                $extra = array(
+                                    'guardian_phone' => $phone,
+                                    'nationality' => '',
+                                    'national_id' => $national_id
+                                );
+                                $student_id = SM_DB::add_student($name, $class, $email, '', null, null, $section, $extra);
+                            }
+
+                            if ($student_id) {
+                                // Auto-assign student to correct hierarchical entities
+                                EESS_Org_Helper::resolve_student_org_ids($student_id, $class, $section, $school_name);
+                                $count++;
+                            }
+                        }
+                    }
+
+                    elseif ($import_type === 'teachers') {
+                        // Mapping: username, email, display_name, phone, password, specialization, school_name, assigned_classes
+                        if (count($data) >= 3) {
+                            $username = sanitize_user($data[0]);
+                            $email = sanitize_email($data[1]);
+                            $display_name = sanitize_text_field($data[2]);
+                            $phone = sanitize_text_field($data[3] ?? '');
+                            $password = !empty($data[4]) ? $data[4] : wp_generate_password();
+                            $specialization = sanitize_text_field($data[5] ?? '');
+                            $school_name = sanitize_text_field($data[6] ?? '');
+                            $assigned_classes = sanitize_text_field($data[7] ?? ''); // e.g. "12|أ, 11|ب"
+
+                            $user = get_user_by('login', $username);
+                            if ($user) {
+                                $user_id = $user->ID;
+                                wp_update_user(array('ID' => $user_id, 'user_email' => $email, 'display_name' => $display_name));
+                            } else {
+                                $user_id = wp_insert_user(array(
+                                    'user_login' => $username,
+                                    'user_email' => $email,
+                                    'display_name' => $display_name,
+                                    'user_pass' => $password
+                                ));
+                            }
+
+                            if ($user_id && !is_wp_error($user_id)) {
+                                SM_Settings::change_user_role($user_id, 'sm_teacher', array('specialization' => $specialization));
+                                update_user_meta($user_id, 'sm_phone', $phone);
+                                update_user_meta($user_id, 'eess_school_name', $school_name);
+
+                                // Map assigned classes
+                                if (!empty($assigned_classes)) {
+                                    $assigned_array = array_map('trim', explode(',', $assigned_classes));
+                                    update_user_meta($user_id, 'sm_assigned_sections', $assigned_array);
+                                }
+
+                                // Handle hierarchical assignment record
+                                $school_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_schools WHERE name = %s", $school_name));
+                                if ($school_id) {
+                                    $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id, 'school_id' => $school_id));
+                                    $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
+                                        'user_id' => $user_id,
+                                        'institution_id' => 1,
+                                        'school_id' => $school_id
+                                    ));
+                                }
+
+                                $count++;
+                            }
+                        }
+                    }
+
+                    elseif ($import_type === 'managers') {
+                        // Mapping: username, email, display_name, phone, password, school_name
+                        if (count($data) >= 3) {
+                            $username = sanitize_user($data[0]);
+                            $email = sanitize_email($data[1]);
+                            $display_name = sanitize_text_field($data[2]);
+                            $phone = sanitize_text_field($data[3] ?? '');
+                            $password = !empty($data[4]) ? $data[4] : wp_generate_password();
+                            $school_name = sanitize_text_field($data[5] ?? '');
+
+                            $user = get_user_by('login', $username);
+                            if ($user) {
+                                $user_id = $user->ID;
+                                wp_update_user(array('ID' => $user_id, 'user_email' => $email, 'display_name' => $display_name));
+                            } else {
+                                $user_id = wp_insert_user(array(
+                                    'user_login' => $username,
+                                    'user_email' => $email,
+                                    'display_name' => $display_name,
+                                    'user_pass' => $password
+                                ));
+                            }
+
+                            if ($user_id && !is_wp_error($user_id)) {
+                                SM_Settings::change_user_role($user_id, 'sm_principal');
+                                update_user_meta($user_id, 'sm_phone', $phone);
+                                update_user_meta($user_id, 'eess_school_name', $school_name);
+
+                                // Find or create School
+                                $school_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_schools WHERE name = %s", $school_name));
+                                if (!$school_id) {
+                                    $wpdb->insert("{$wpdb->prefix}eess_schools", array(
+                                        'institution_id' => 1,
+                                        'name' => $school_name,
+                                        'status' => 'active'
+                                    ));
+                                    $school_id = $wpdb->insert_id;
+                                }
+
+                                // Hierarchical assignment
+                                $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id, 'school_id' => $school_id));
+                                $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
+                                    'user_id' => $user_id,
+                                    'institution_id' => 1,
+                                    'school_id' => $school_id
+                                ));
+
+                                $count++;
+                            }
+                        }
+                    }
+                }
+                fclose($handle);
+                SM_Logger::log('استيراد البيانات الهيكلية', "تم استيراد ($count) سجل بنجاح.");
+                wp_redirect(add_query_arg('sm_admin_msg', 'csv_imported', $_SERVER['REQUEST_URI']));
+                exit;
+            }
+        }
+
         // Handle Hierarchical Violations Save
         if (isset($_POST['sm_save_hierarchical_violations']) && wp_verify_nonce($_POST['sm_admin_nonce'], 'sm_admin_action')) {
             if (current_user_can('إدارة_النظام')) {
@@ -4001,5 +4222,14 @@ class SM_Public {
 
         update_user_meta($target_user_id, 'eess_admin_notes', $notes);
         wp_send_json_success('تم حفظ الملاحظات الداخلية بنجاح.');
+    }
+
+    public function ajax_get_user_assignments() {
+        if (!is_user_logged_in() || !current_user_can('إدارة_النظام')) {
+            wp_send_json_error('Unauthorized');
+        }
+        $user_id = intval($_GET['user_id']);
+        $scope = EESS_Org_Helper::get_user_scope($user_id);
+        wp_send_json_success($scope);
     }
 }

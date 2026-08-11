@@ -178,4 +178,152 @@ class EESS_Org_Helper {
         // Teachers can only access their assigned classes/sections
         return " {$prefix}class_id IN ($class_ids) ";
     }
+
+    public static function resolve_student_org_ids($student_id, $class_name, $section, $school_name = '') {
+        global $wpdb;
+        if (empty($school_name)) {
+            $school_info = SM_Settings::get_school_info();
+            $school_name = $school_info['school_name'] ?? 'مدرسة الأمل للتعليم الأساسي والثانوي';
+        }
+
+        // 1. Find or create School
+        $school_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_schools WHERE name = %s", $school_name));
+        if (!$school_id) {
+            $wpdb->insert("{$wpdb->prefix}eess_schools", array(
+                'institution_id' => 1,
+                'name' => $school_name,
+                'status' => 'active'
+            ));
+            $school_id = $wpdb->insert_id;
+        }
+
+        // 2. Find or create Grade
+        $grade_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_grades WHERE school_id = %d AND name = %s", $school_id, $class_name));
+        if (!$grade_id) {
+            $wpdb->insert("{$wpdb->prefix}eess_grades", array(
+                'school_id' => $school_id,
+                'name' => $class_name
+            ));
+            $grade_id = $wpdb->insert_id;
+        }
+
+        // 3. Find or create Class
+        $class_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_classes WHERE grade_id = %d AND name = %s", $grade_id, $section));
+        if (!$class_id) {
+            $wpdb->insert("{$wpdb->prefix}eess_classes", array(
+                'grade_id' => $grade_id,
+                'name' => $section
+            ));
+            $class_id = $wpdb->insert_id;
+        }
+
+        // 4. Update the student table row
+        $wpdb->update("{$wpdb->prefix}sm_students", array(
+            'institution_id' => 1,
+            'school_id' => $school_id,
+            'grade_id' => $grade_id,
+            'class_id' => $class_id
+        ), array('id' => $student_id));
+
+        return array(
+            'school_id' => $school_id,
+            'grade_id' => $grade_id,
+            'class_id' => $class_id
+        );
+    }
+
+    public static function ensure_all_students_resolved() {
+        global $wpdb;
+        $unresolved = $wpdb->get_results("SELECT id, class_name, section FROM {$wpdb->prefix}sm_students WHERE school_id IS NULL OR school_id = 0 OR class_id IS NULL OR class_id = 0");
+        foreach ($unresolved as $row) {
+            self::resolve_student_org_ids($row->id, $row->class_name, $row->section);
+        }
+    }
+
+    // --- ORGANIZATIONAL CRUD METHODS ---
+    public static function get_institutions() {
+        global $wpdb;
+        return $wpdb->get_results("SELECT * FROM {$wpdb->prefix}eess_institutions ORDER BY name ASC");
+    }
+
+    public static function add_institution($name) {
+        global $wpdb;
+        return $wpdb->insert("{$wpdb->prefix}eess_institutions", array('name' => $name, 'status' => 'active'));
+    }
+
+    public static function update_institution($id, $name) {
+        global $wpdb;
+        return $wpdb->update("{$wpdb->prefix}eess_institutions", array('name' => $name), array('id' => $id));
+    }
+
+    public static function delete_institution($id) {
+        global $wpdb;
+        return $wpdb->delete("{$wpdb->prefix}eess_institutions", array('id' => $id));
+    }
+
+    public static function get_schools() {
+        global $wpdb;
+        return $wpdb->get_results("SELECT s.*, i.name as institution_name FROM {$wpdb->prefix}eess_schools s LEFT JOIN {$wpdb->prefix}eess_institutions i ON s.institution_id = i.id ORDER BY s.name ASC");
+    }
+
+    public static function add_school($inst_id, $name) {
+        global $wpdb;
+        return $wpdb->insert("{$wpdb->prefix}eess_schools", array('institution_id' => $inst_id, 'name' => $name, 'status' => 'active'));
+    }
+
+    public static function update_school($id, $name, $inst_id) {
+        global $wpdb;
+        return $wpdb->update("{$wpdb->prefix}eess_schools", array('name' => $name, 'institution_id' => $inst_id), array('id' => $id));
+    }
+
+    public static function delete_school($id) {
+        global $wpdb;
+        return $wpdb->delete("{$wpdb->prefix}eess_schools", array('id' => $id));
+    }
+
+    public static function get_grades($school_id = null) {
+        global $wpdb;
+        if ($school_id) {
+            return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}eess_grades WHERE school_id = %d ORDER BY name ASC", $school_id));
+        }
+        return $wpdb->get_results("SELECT g.*, s.name as school_name FROM {$wpdb->prefix}eess_grades g LEFT JOIN {$wpdb->prefix}eess_schools s ON g.school_id = s.id ORDER BY g.name ASC");
+    }
+
+    public static function add_grade($school_id, $name) {
+        global $wpdb;
+        return $wpdb->insert("{$wpdb->prefix}eess_grades", array('school_id' => $school_id, 'name' => $name));
+    }
+
+    public static function update_grade($id, $name, $school_id) {
+        global $wpdb;
+        return $wpdb->update("{$wpdb->prefix}eess_grades", array('name' => $name, 'school_id' => $school_id), array('id' => $id));
+    }
+
+    public static function delete_grade($id) {
+        global $wpdb;
+        return $wpdb->delete("{$wpdb->prefix}eess_grades", array('id' => $id));
+    }
+
+    public static function get_classes($grade_id = null) {
+        global $wpdb;
+        if ($grade_id) {
+            return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}eess_classes WHERE grade_id = %d ORDER BY name ASC", $grade_id));
+        }
+        return $wpdb->get_results("SELECT c.*, g.name as grade_name, s.name as school_name FROM {$wpdb->prefix}eess_classes c LEFT JOIN {$wpdb->prefix}eess_grades g ON c.grade_id = g.id LEFT JOIN {$wpdb->prefix}eess_schools s ON g.school_id = s.id ORDER BY c.name ASC");
+    }
+
+    public static function add_class($grade_id, $name) {
+        global $wpdb;
+        return $wpdb->insert("{$wpdb->prefix}eess_classes", array('grade_id' => $grade_id, 'name' => $name));
+    }
+
+    public static function update_class($id, $name, $grade_id) {
+        global $wpdb;
+        return $wpdb->update("{$wpdb->prefix}eess_classes", array('name' => $name, 'grade_id' => $grade_id), array('id' => $id));
+    }
+
+    public static function delete_class($id) {
+        global $wpdb;
+        return $wpdb->delete("{$wpdb->prefix}eess_classes", array('id' => $id));
+    }
 }
