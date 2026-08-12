@@ -24,6 +24,17 @@ $current_level = $hierarchy[$current_role] ?? -3;
 // Fetch all users
 $all_users = get_users();
 
+$current_user_scope = EESS_Org_Helper::get_user_scope();
+if (!$current_user_scope['unrestricted']) {
+    $all_users = array_filter($all_users, function($u) use ($current_user_scope) {
+        if ($u->ID == get_current_user_id()) return true;
+        $u_scope = EESS_Org_Helper::get_user_scope($u->ID);
+        if (empty($u_scope['schools'])) return true;
+        $intersect = array_intersect($u_scope['schools'], $current_user_scope['schools']);
+        return !empty($intersect);
+    });
+}
+
 // Sort hierarchy for display ordering
 $sort_hierarchy = array(
     'sm_student' => 0,
@@ -189,6 +200,11 @@ $unique_subjects = array_unique(array_map(function($s){ return $s->name; }, $all
                         $u_spec = get_user_meta($u->ID, 'sm_specialization', true) ?: '';
                         $u_emp = get_user_meta($u->ID, 'eess_employee_number', true) ?: '';
                         $u_inst = get_user_meta($u->ID, 'eess_school_name', true) ?: '';
+                        $u_school_id = get_user_meta($u->ID, 'eess_school_id', true) ?: '';
+                        if (empty($u_school_id) && !empty($u_inst)) {
+                            global $wpdb;
+                            $u_school_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_schools WHERE name = %s", $u_inst)) ?: '';
+                        }
                         $u_dept = get_user_meta($u->ID, 'eess_department', true) ?: '';
                         $u_status = get_user_meta($u->ID, 'sm_account_status', true) ?: 'active';
                         $u_reg_status = get_user_meta($u->ID, 'eess_approval_status', true) ?: 'approved';
@@ -205,7 +221,7 @@ $unique_subjects = array_unique(array_map(function($s){ return $s->name; }, $all
                             "photo" => get_user_meta($u->ID, 'eess_profile_photo', true),
                             "specialization" => $u_spec,
                             "employee_number" => $u_emp,
-                            "institution" => $u_inst,
+                            "institution" => $u_school_id,
                             "department" => $u_dept,
                             "status" => $u_status,
                             "notes" => $u_notes
@@ -392,7 +408,14 @@ $unique_subjects = array_unique(array_map(function($s){ return $s->name; }, $all
                 </div>
                 <div class="sm-form-group">
                     <label class="sm-label">المدرسة المنتسب لها / المؤسسة:</label>
-                    <input type="text" name="institution" class="sm-input" placeholder="اسم المدرسة أو الإدارة">
+                    <select name="institution" class="sm-select" required>
+                        <option value="">-- اختر المدرسة --</option>
+                        <?php
+                        $all_registered_schools = EESS_Org_Helper::get_schools();
+                        foreach ($all_registered_schools as $sch): ?>
+                            <option value="<?php echo $sch->id; ?>"><?php echo esc_html($sch->name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="sm-form-group">
                     <label class="sm-label">القسم / الإدارة التابع لها:</label>
@@ -458,7 +481,12 @@ $unique_subjects = array_unique(array_map(function($s){ return $s->name; }, $all
                 </div>
                 <div class="sm-form-group">
                     <label class="sm-label">المدرسة المنتسب لها / المؤسسة:</label>
-                    <input type="text" name="institution" id="edit_u_inst" class="sm-input">
+                    <select name="institution" id="edit_u_inst" class="sm-select" required>
+                        <option value="">-- اختر المدرسة --</option>
+                        <?php foreach ($all_registered_schools as $sch): ?>
+                            <option value="<?php echo $sch->id; ?>"><?php echo esc_html($sch->name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="sm-form-group">
                     <label class="sm-label">القسم / الإدارة التابع لها:</label>

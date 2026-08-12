@@ -51,6 +51,21 @@
         }
 
         $parents = get_users($args);
+
+        $current_user_scope = EESS_Org_Helper::get_user_scope();
+        if (!$current_user_scope['unrestricted']) {
+            $parents = array_filter($parents, function($parent) use ($current_user_scope) {
+                $children = SM_DB::get_students_by_parent($parent->ID);
+                if (empty($children)) return false;
+                foreach ($children as $c) {
+                    if (in_array(intval($c->school_id), $current_user_scope['schools'])) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
+
         if (empty($parents)): ?>
             <div style="padding: 60px; text-align: center; background: #fff; border-radius: 12px; border: 1px solid var(--sm-border-color); color: #a0aec0;">
                 <span class="dashicons dashicons-admin-users" style="font-size: 48px; width:48px; height:48px; margin-bottom:15px;"></span>

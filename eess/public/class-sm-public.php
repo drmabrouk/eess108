@@ -1787,6 +1787,29 @@ class SM_Public {
             if (!empty($_POST['specialization'])) {
                 update_user_meta($user_id, 'sm_specialization', sanitize_text_field($_POST['specialization']));
             }
+            if (isset($_POST['employee_number'])) {
+                update_user_meta($user_id, 'eess_employee_number', sanitize_text_field($_POST['employee_number']));
+            }
+            if (isset($_POST['department'])) {
+                update_user_meta($user_id, 'eess_department', sanitize_text_field($_POST['department']));
+            }
+
+            $school_id = isset($_POST['institution']) ? intval($_POST['institution']) : 0;
+            if ($school_id) {
+                global $wpdb;
+                $school_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}eess_schools WHERE id = %d", $school_id));
+                if ($school_name) {
+                    update_user_meta($user_id, 'eess_school_name', $school_name);
+                    update_user_meta($user_id, 'eess_school_id', $school_id);
+                    $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id));
+                    $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
+                        'user_id' => $user_id,
+                        'institution_id' => 1,
+                        'school_id' => $school_id
+                    ));
+                }
+            }
+
             if (!empty($_FILES['profile_photo']['name'])) {
                 require_once(ABSPATH . 'wp-admin/includes/file.php');
                 require_once(ABSPATH . 'wp-admin/includes/image.php');
@@ -1893,6 +1916,28 @@ class SM_Public {
         
         if (!empty($_POST['specialization'])) {
             update_user_meta($user_id, 'sm_specialization', sanitize_text_field($_POST['specialization']));
+        }
+        if (isset($_POST['employee_number'])) {
+            update_user_meta($user_id, 'eess_employee_number', sanitize_text_field($_POST['employee_number']));
+        }
+        if (isset($_POST['department'])) {
+            update_user_meta($user_id, 'eess_department', sanitize_text_field($_POST['department']));
+        }
+
+        $school_id = isset($_POST['institution']) ? intval($_POST['institution']) : 0;
+        if ($school_id) {
+            global $wpdb;
+            $school_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}eess_schools WHERE id = %d", $school_id));
+            if ($school_name) {
+                update_user_meta($user_id, 'eess_school_name', $school_name);
+                update_user_meta($user_id, 'eess_school_id', $school_id);
+                $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id));
+                $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
+                    'user_id' => $user_id,
+                    'institution_id' => 1,
+                    'school_id' => $school_id
+                ));
+            }
         }
 
         SM_Settings::change_user_role($user_id, sanitize_text_field($_POST['user_role']), $_POST);
@@ -2985,11 +3030,58 @@ class SM_Public {
         // Handle Centralized Institutional Data Imports (CSV Parser)
         if (isset($_POST['eess_import_org_csv']) && wp_verify_nonce($_POST['sm_admin_nonce'], 'sm_admin_action')) {
             if (current_user_can('إدارة_النظام') && !empty($_FILES['csv_file']['tmp_name'])) {
+                $school_id = intval($_POST['target_school_id']);
                 $import_type = sanitize_text_field($_POST['import_type']);
-                $handle = fopen($_FILES['csv_file']['tmp_name'], "r");
-                $header = fgetcsv($handle); // skip header
-                $count = 0;
 
+                global $wpdb;
+                $school_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}eess_schools WHERE id = %d", $school_id));
+                if (!$school_name) {
+                    wp_redirect(add_query_arg('sm_admin_msg', 'error', $_SERVER['REQUEST_URI']));
+                    exit;
+                }
+
+                $handle = fopen($_FILES['csv_file']['tmp_name'], "r");
+                $header = fgetcsv($handle);
+                if (!$header) {
+                    fclose($handle);
+                    wp_redirect(add_query_arg('sm_admin_msg', 'error', $_SERVER['REQUEST_URI']));
+                    exit;
+                }
+
+                // Clean and normalize headers to find indexes
+                $headers = array();
+                foreach ($header as $idx => $h) {
+                    $h_norm = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $h);
+                    $headers[trim(strtolower($h_norm))] = $idx;
+                }
+
+                // Helper to find column index by multiple candidate names (Arabic/English)
+                $find_col = function($candidates) use ($headers) {
+                    foreach ($candidates as $c) {
+                        $c_clean = trim(strtolower($c));
+                        if (isset($headers[$c_clean])) {
+                            return $headers[$c_clean];
+                        }
+                    }
+                    return -1;
+                };
+
+                // Find candidate columns based on import type
+                $col_name = $find_col(['الاسم', 'الاسم الكامل', 'name', 'student name', 'display_name', 'اسم']);
+                $col_username = $find_col(['اسم المستخدم', 'username', 'login', 'user_login']);
+                $col_email = $find_col(['البريد', 'البريد الإلكتروني', 'email', 'user_email', 'parent_email', 'بريد ولي الأمر']);
+                $col_phone = $find_col(['الهاتف', 'رقم الهاتف', 'phone', 'sm_phone', 'guardian_phone', 'جوال ولي الأمر', 'رقم الجوال']);
+                $col_password = $find_col(['كلمة المرور', 'password', 'pass', 'كلمة السر']);
+                $col_grade = $find_col(['الصف', 'الصف الدراسي', 'grade', 'class_name']);
+                $col_section = $find_col(['الشعبة', 'الفصل', 'section', 'class', 'المجموعة']);
+                $col_division = $find_col(['الحلقة', 'النطاق', 'division', 'cycle']);
+                $col_specialization = $find_col(['التخصص', 'المادة', 'specialization', 'subject']);
+                $col_emp_num = $find_col(['الرقم الوظيفي', 'employee_number', 'code', 'الكود', 'رقم الهوية', 'الرقم القومي / الهوية']);
+                $col_dept = $find_col(['القسم', 'department', 'dept', 'الإدارة']);
+                $col_role = $find_col(['الرتبة', 'الدور', 'role', 'المسمى الوظيفي']);
+                $col_student_code = $find_col(['كود الطالب', 'كود الابن', 'student_code', 'child_code', 'رقم الهوية الوطنية / الكود']);
+
+                $count = 0;
                 while (($data = fgetcsv($handle)) !== FALSE) {
                     // Normalize data encoding
                     foreach ($data as $k => $v) {
@@ -3000,151 +3092,207 @@ class SM_Public {
                         $data[$k] = trim($data[$k]);
                     }
 
+                    // Extract values dynamically based on index
+                    $val_name = ($col_name !== -1 && isset($data[$col_name])) ? $data[$col_name] : '';
+                    $val_username = ($col_username !== -1 && isset($data[$col_username])) ? $data[$col_username] : '';
+                    $val_email = ($col_email !== -1 && isset($data[$col_email])) ? $data[$col_email] : '';
+                    $val_phone = ($col_phone !== -1 && isset($data[$col_phone])) ? $data[$col_phone] : '';
+                    $val_password = ($col_password !== -1 && isset($data[$col_password])) ? $data[$col_password] : wp_generate_password();
+                    $val_grade = ($col_grade !== -1 && isset($data[$col_grade])) ? $data[$col_grade] : '';
+                    $val_section = ($col_section !== -1 && isset($data[$col_section])) ? $data[$col_section] : '';
+                    $val_division = ($col_division !== -1 && isset($data[$col_division])) ? $data[$col_division] : '';
+                    $val_specialization = ($col_specialization !== -1 && isset($data[$col_specialization])) ? $data[$col_specialization] : '';
+                    $val_emp_num = ($col_emp_num !== -1 && isset($data[$col_emp_num])) ? $data[$col_emp_num] : '';
+                    $val_dept = ($col_dept !== -1 && isset($data[$col_dept])) ? $data[$col_dept] : '';
+                    $val_role = ($col_role !== -1 && isset($data[$col_role])) ? $data[$col_role] : '';
+                    $val_student_code = ($col_student_code !== -1 && isset($data[$col_student_code])) ? $data[$col_student_code] : '';
+
                     if ($import_type === 'students') {
-                        // Mapping: name, class_name, section, parent_email, guardian_phone, national_id, school_name
-                        if (count($data) >= 2) {
-                            $name = $data[0];
-                            $class = $data[1];
-                            $section = $data[2] ?? '';
-                            $email = $data[3] ?? '';
-                            $phone = $data[4] ?? '';
-                            $national_id = $data[5] ?? '';
-                            $school_name = $data[6] ?? '';
+                        if (empty($val_name)) continue;
 
-                            // Check if student exists, otherwise create
-                            $student_id = SM_DB::student_exists($name, $class, $section, $national_id);
-                            if ($student_id) {
-                                SM_DB::update_student($student_id, array(
-                                    'name' => $name,
-                                    'class_name' => $class,
-                                    'section' => $section,
-                                    'parent_email' => $email,
-                                    'guardian_phone' => $phone,
-                                    'national_id' => $national_id
+                        // 1. Detect and create Division if exists in columns
+                        $division_id = null;
+                        if (!empty($val_division)) {
+                            $division_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_divisions WHERE school_id = %d AND name = %s", $school_id, $val_division));
+                            if (!$division_id) {
+                                $wpdb->insert("{$wpdb->prefix}eess_divisions", array(
+                                    'school_id' => $school_id,
+                                    'name' => $val_division,
+                                    'status' => 'active'
                                 ));
-                            } else {
-                                $extra = array(
-                                    'guardian_phone' => $phone,
-                                    'nationality' => '',
-                                    'national_id' => $national_id
-                                );
-                                $student_id = SM_DB::add_student($name, $class, $email, '', null, null, $section, $extra);
-                            }
-
-                            if ($student_id) {
-                                // Auto-assign student to correct hierarchical entities
-                                EESS_Org_Helper::resolve_student_org_ids($student_id, $class, $section, $school_name);
-                                $count++;
+                                $division_id = $wpdb->insert_id;
                             }
                         }
+
+                        // 2. Detect and create Grade
+                        $grade_id = null;
+                        if (!empty($val_grade)) {
+                            $grade_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_grades WHERE school_id = %d AND name = %s", $school_id, $val_grade));
+                            if (!$grade_id) {
+                                $wpdb->insert("{$wpdb->prefix}eess_grades", array(
+                                    'school_id' => $school_id,
+                                    'name' => $val_grade,
+                                    'division_id' => $division_id
+                                ));
+                                $grade_id = $wpdb->insert_id;
+                            } else if ($division_id) {
+                                // Sync division_id
+                                $wpdb->update("{$wpdb->prefix}eess_grades", array('division_id' => $division_id), array('id' => $grade_id));
+                            }
+                        }
+
+                        // 3. Detect and create Class
+                        $class_id = null;
+                        if ($grade_id && !empty($val_section)) {
+                            $class_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_classes WHERE grade_id = %d AND name = %s", $grade_id, $val_section));
+                            if (!$class_id) {
+                                $wpdb->insert("{$wpdb->prefix}eess_classes", array(
+                                    'grade_id' => $grade_id,
+                                    'name' => $val_section
+                                ));
+                                $class_id = $wpdb->insert_id;
+                            }
+                        }
+
+                        // 4. Create/update Student
+                        $student_id = SM_DB::student_exists($val_name, $val_grade, $val_section, $val_emp_num);
+                        if ($student_id) {
+                            SM_DB::update_student($student_id, array(
+                                'name' => $val_name,
+                                'class_name' => $val_grade,
+                                'section' => $val_section,
+                                'parent_email' => $val_email,
+                                'guardian_phone' => $val_phone,
+                                'national_id' => $val_emp_num,
+                                'school_id' => $school_id,
+                                'grade_id' => $grade_id,
+                                'class_id' => $class_id,
+                                'institution_id' => 1
+                            ));
+                        } else {
+                            $extra = array(
+                                'guardian_phone' => $val_phone,
+                                'nationality' => '',
+                                'national_id' => $val_emp_num,
+                                'school_id' => $school_id,
+                                'grade_id' => $grade_id,
+                                'class_id' => $class_id,
+                                'institution_id' => 1
+                            );
+                            $student_id = SM_DB::add_student($val_name, $val_grade, $val_email, '', null, null, $val_section, $extra);
+                        }
+                        if ($student_id) $count++;
                     }
 
                     elseif ($import_type === 'teachers') {
-                        // Mapping: username, email, display_name, phone, password, specialization, school_name, assigned_classes
-                        if (count($data) >= 3) {
-                            $username = sanitize_user($data[0]);
-                            $email = sanitize_email($data[1]);
-                            $display_name = sanitize_text_field($data[2]);
-                            $phone = sanitize_text_field($data[3] ?? '');
-                            $password = !empty($data[4]) ? $data[4] : wp_generate_password();
-                            $specialization = sanitize_text_field($data[5] ?? '');
-                            $school_name = sanitize_text_field($data[6] ?? '');
-                            $assigned_classes = sanitize_text_field($data[7] ?? ''); // e.g. "12|أ, 11|ب"
+                        if (empty($val_username) || empty($val_name)) continue;
 
-                            $user = get_user_by('login', $username);
-                            if ($user) {
-                                $user_id = $user->ID;
-                                wp_update_user(array('ID' => $user_id, 'user_email' => $email, 'display_name' => $display_name));
-                            } else {
-                                $user_id = wp_insert_user(array(
-                                    'user_login' => $username,
-                                    'user_email' => $email,
-                                    'display_name' => $display_name,
-                                    'user_pass' => $password
-                                ));
-                            }
+                        $user = get_user_by('login', $val_username);
+                        if ($user) {
+                            $user_id = $user->ID;
+                            wp_update_user(array('ID' => $user_id, 'user_email' => $val_email, 'display_name' => $val_name));
+                        } else {
+                            $user_id = wp_insert_user(array(
+                                'user_login' => $val_username,
+                                'user_email' => $val_email ?: ($val_username . '@school.local'),
+                                'display_name' => $val_name,
+                                'user_pass' => $val_password
+                            ));
+                        }
 
-                            if ($user_id && !is_wp_error($user_id)) {
-                                SM_Settings::change_user_role($user_id, 'sm_teacher', array('specialization' => $specialization));
-                                update_user_meta($user_id, 'sm_phone', $phone);
-                                update_user_meta($user_id, 'eess_school_name', $school_name);
+                        if ($user_id && !is_wp_error($user_id)) {
+                            SM_Settings::change_user_role($user_id, 'sm_teacher', array('specialization' => $val_specialization));
+                            update_user_meta($user_id, 'sm_phone', $val_phone);
+                            update_user_meta($user_id, 'eess_employee_number', $val_emp_num);
+                            update_user_meta($user_id, 'eess_department', $val_dept);
+                            update_user_meta($user_id, 'eess_school_name', $school_name);
+                            update_user_meta($user_id, 'eess_school_id', $school_id);
 
-                                // Map assigned classes
-                                if (!empty($assigned_classes)) {
-                                    $assigned_array = array_map('trim', explode(',', $assigned_classes));
-                                    update_user_meta($user_id, 'sm_assigned_sections', $assigned_array);
-                                }
-
-                                // Handle hierarchical assignment record
-                                $school_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_schools WHERE name = %s", $school_name));
-                                if ($school_id) {
-                                    $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id, 'school_id' => $school_id));
-                                    $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
-                                        'user_id' => $user_id,
-                                        'institution_id' => 1,
-                                        'school_id' => $school_id
-                                    ));
-                                }
-
-                                $count++;
-                            }
+                            // Assignment
+                            $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id));
+                            $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
+                                'user_id' => $user_id,
+                                'institution_id' => 1,
+                                'school_id' => $school_id
+                            ));
+                            $count++;
                         }
                     }
 
-                    elseif ($import_type === 'managers') {
-                        // Mapping: username, email, display_name, phone, password, school_name
-                        if (count($data) >= 3) {
-                            $username = sanitize_user($data[0]);
-                            $email = sanitize_email($data[1]);
-                            $display_name = sanitize_text_field($data[2]);
-                            $phone = sanitize_text_field($data[3] ?? '');
-                            $password = !empty($data[4]) ? $data[4] : wp_generate_password();
-                            $school_name = sanitize_text_field($data[5] ?? '');
+                    elseif ($import_type === 'parents') {
+                        if (empty($val_username) || empty($val_name)) continue;
 
-                            $user = get_user_by('login', $username);
-                            if ($user) {
-                                $user_id = $user->ID;
-                                wp_update_user(array('ID' => $user_id, 'user_email' => $email, 'display_name' => $display_name));
-                            } else {
-                                $user_id = wp_insert_user(array(
-                                    'user_login' => $username,
-                                    'user_email' => $email,
-                                    'display_name' => $display_name,
-                                    'user_pass' => $password
-                                ));
+                        $user = get_user_by('login', $val_username);
+                        if ($user) {
+                            $user_id = $user->ID;
+                            wp_update_user(array('ID' => $user_id, 'user_email' => $val_email, 'display_name' => $val_name));
+                        } else {
+                            $user_id = wp_insert_user(array(
+                                'user_login' => $val_username,
+                                'user_email' => $val_email ?: ($val_username . '@parent.local'),
+                                'display_name' => $val_name,
+                                'user_pass' => $val_password
+                            ));
+                        }
+
+                        if ($user_id && !is_wp_error($user_id)) {
+                            SM_Settings::change_user_role($user_id, 'sm_parent');
+                            update_user_meta($user_id, 'sm_phone', $val_phone);
+                            update_user_meta($user_id, 'eess_school_name', $school_name);
+                            update_user_meta($user_id, 'eess_school_id', $school_id);
+
+                            // Map to child
+                            if (!empty($val_student_code)) {
+                                $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}sm_students SET parent_user_id = %d WHERE student_code = %s", $user_id, $val_student_code));
                             }
+                            $count++;
+                        }
+                    }
 
-                            if ($user_id && !is_wp_error($user_id)) {
-                                SM_Settings::change_user_role($user_id, 'sm_principal');
-                                update_user_meta($user_id, 'sm_phone', $phone);
-                                update_user_meta($user_id, 'eess_school_name', $school_name);
+                    elseif ($import_type === 'managers' || $import_type === 'users') {
+                        if (empty($val_username) || empty($val_name)) continue;
 
-                                // Find or create School
-                                $school_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$wpdb->prefix}eess_schools WHERE name = %s", $school_name));
-                                if (!$school_id) {
-                                    $wpdb->insert("{$wpdb->prefix}eess_schools", array(
-                                        'institution_id' => 1,
-                                        'name' => $school_name,
-                                        'status' => 'active'
-                                    ));
-                                    $school_id = $wpdb->insert_id;
-                                }
-
-                                // Hierarchical assignment
-                                $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id, 'school_id' => $school_id));
-                                $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
-                                    'user_id' => $user_id,
-                                    'institution_id' => 1,
-                                    'school_id' => $school_id
-                                ));
-
-                                $count++;
+                        $role = 'sm_supervisor';
+                        if (!empty($val_role)) {
+                            if ($val_role === 'sm_principal' || $val_role === 'principal' || $val_role === 'مدير') {
+                                $role = 'sm_principal';
+                            } elseif ($val_role === 'sm_system_admin' || $val_role === 'admin' || $val_role === 'مسؤول') {
+                                $role = 'sm_system_admin';
                             }
+                        }
+
+                        $user = get_user_by('login', $val_username);
+                        if ($user) {
+                            $user_id = $user->ID;
+                            wp_update_user(array('ID' => $user_id, 'user_email' => $val_email, 'display_name' => $val_name));
+                        } else {
+                            $user_id = wp_insert_user(array(
+                                'user_login' => $val_username,
+                                'user_email' => $val_email ?: ($val_username . '@user.local'),
+                                'display_name' => $val_name,
+                                'user_pass' => $val_password
+                            ));
+                        }
+
+                        if ($user_id && !is_wp_error($user_id)) {
+                            SM_Settings::change_user_role($user_id, $role);
+                            update_user_meta($user_id, 'sm_phone', $val_phone);
+                            update_user_meta($user_id, 'eess_school_name', $school_name);
+                            update_user_meta($user_id, 'eess_school_id', $school_id);
+
+                            $wpdb->delete("{$wpdb->prefix}eess_user_assignments", array('user_id' => $user_id));
+                            $wpdb->insert("{$wpdb->prefix}eess_user_assignments", array(
+                                'user_id' => $user_id,
+                                'institution_id' => 1,
+                                'school_id' => $school_id
+                            ));
+                            $count++;
                         }
                     }
                 }
                 fclose($handle);
-                SM_Logger::log('استيراد البيانات الهيكلية', "تم استيراد ($count) سجل بنجاح.");
+                wp_cache_flush();
+                SM_Logger::log('استيراد البيانات الشامل للمدرسة', "تم استيراد ($count) سجل بنجاح للمدرسة: $school_name.");
                 wp_redirect(add_query_arg('sm_admin_msg', 'csv_imported', $_SERVER['REQUEST_URI']));
                 exit;
             }
